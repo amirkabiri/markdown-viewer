@@ -5,6 +5,11 @@ delivers a task — the board must never drift from reality.
 
 Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milestone back, then pruned)
 
+- [x] **Research: browser built-in AI APIs** — findings in
+  `docs/ai-research.md` (Prompt API stable web Chrome 148; Summarizer/
+  Detector/Translator stable 138; Writer/Rewriter/Proofreader origin-trial;
+  Chromium-only; no certified `fa` — mitigations documented)
+
 ---
 
 ## P0 — Critical path (in flight)
@@ -26,13 +31,16 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
   warn > 30k-char link, refuse > 300k. Pure-logic module + Node roundtrip
   tests. *(Agent B1, runs in parallel with C)*
 - [ ] **AI assistant (`js/ai.js`)** — in-app assistant on browsers' built-in
-  LLMs (Gemini Nano via Chrome Prompt API `LanguageModel`; Writer/Rewriter/
-  Summarizer/Translator where available). Panel with streaming responses that
-  outputs Markdown + ` ```mermaid ` (renders via existing pipeline), insert-at-cursor,
-  quick actions (summarize doc / rewrite selection / translate), strict feature
-  detection, graceful "how to enable" panel when unavailable, on-device only —
-  no network calls, no CSP change. Persian output quality per research findings.
-  *(Agent C, runs in parallel with B1)*
+  LLMs. Spec informed by `docs/ai-research.md` (read it first). Key decisions
+  from research: Prompt API (`LanguageModel`) is the generator (stable web
+  Chrome 148; streaming with cumulative-chunk guard); Summarizer for doc
+  summary (Chrome 138); Rewriter is origin-trial-only → Prompt API fallback;
+  Translator has no `fa` pair → honest unavailable state; never declare
+  `expectedOutputs.languages: ['fa']`; mermaid output uses Latin node IDs with
+  quoted labels; `downloadable` state gets a download button (user activation
+  + progress UI); model output rendered in the panel must pass DOMPurify.
+  Strict feature detection + graceful explainer when unavailable; on-device
+  only — no network calls, no CSP change. *(Agent C, runs in parallel with B1)*
 - [ ] **Integration pass** — share dialog + AI panel markup in `index.html`,
   `#d=` boot routing in `js/documents.js`, module wiring in `js/main.js`.
   *(Agent B2, after B1 + C land)*
