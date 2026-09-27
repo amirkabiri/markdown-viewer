@@ -47,8 +47,6 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
-    # Skips until the Playwright setup (playwright.config.*) lands in the repo.
-    if: ${{ hashFiles('playwright.config.*') != '' }}
     steps:
       - uses: actions/checkout@v4
 
