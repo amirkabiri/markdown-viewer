@@ -13,13 +13,17 @@ export const DEFAULT_SETTINGS: ProviderSettings = {
   baseUrl: '',
   apiKey: '',
   model: '',
+  // directEdit defaults to false and stays ABSENT when off — normalizeSettings
+  // only ever writes the key as `true`, so payloads stored by older versions
+  // remain byte-compatible and absence reads as the false default.
 };
 
 /**
  * Repairs an arbitrary (JSON.parse'd) value into a valid ProviderSettings:
  * unknown provider ids fall back to 'builtin', non-string fields become ''.
  * baseUrl/model are trimmed; apiKey is preserved verbatim (tokens are exact).
- * Pure.
+ * directEdit is kept only when strictly true (anything else — missing, false,
+ * or a wrong type — repairs to the absent = false default). Pure.
  */
 export function normalizeSettings(raw: unknown): ProviderSettings {
   const src = (raw !== null && typeof raw === 'object' && !Array.isArray(raw))
@@ -28,12 +32,14 @@ export function normalizeSettings(raw: unknown): ProviderSettings {
   const provider = (PROVIDERS as readonly unknown[]).includes(src.provider)
     ? src.provider as ProviderId
     : 'builtin';
-  return {
+  const out: ProviderSettings = {
     provider,
     baseUrl: typeof src.baseUrl === 'string' ? src.baseUrl.trim() : '',
     apiKey: typeof src.apiKey === 'string' ? src.apiKey : '',
     model: typeof src.model === 'string' ? src.model.trim() : '',
   };
+  if (src.directEdit === true) out.directEdit = true;
+  return out;
 }
 
 /** Reads `mv:ai` from localStorage, repairing anything invalid to defaults. */
@@ -45,7 +51,7 @@ export function loadSettings(): ProviderSettings {
   return normalizeSettings(raw);
 }
 
-/** Persists the settings (only the four known fields are written). */
+/** Persists the settings (only the known fields are written; directEdit only when on). */
 export function saveSettings(next: ProviderSettings): void {
   store.set('ai', normalizeSettings(next));
 }

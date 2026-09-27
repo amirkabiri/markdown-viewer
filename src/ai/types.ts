@@ -26,4 +26,11 @@ export interface ProviderSettings {
   baseUrl: string;
   apiKey: string;
   model: string;
+  /**
+   * Direct editing: when true the assistant writes into the document itself
+   * (stream-inserts/replaces + the per-message edit buttons). Absent/false =
+   * off. Kept optional-and-omitted-when-off so stored payloads from before
+   * this field existed stay exactly compatible (see normalizeSettings).
+   */
+  directEdit?: boolean;
 }

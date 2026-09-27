@@ -1,4 +1,4 @@
-# Task Board
+# Qalam (formerly markdown-viewer)
 
 Single source of truth for pending work. Update this file in the same commit that
 delivers a task — the board must never drift from reality.
@@ -29,13 +29,10 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
 
 ### Milestone: AI direct document editing (current)
 
-- [~] **Agent C3 — direct-edit access + selection-aware chat** (`src/ai/**`):
-  direct-edit toggle (AI writes into the textarea as it streams), pure
-  `computeEdit` helper + unit tests, per-response buttons (insert / append /
-  replace selection / replace document with confirm), native-undo-preserving
-  edits via execCommand fallback chain, and **selection-aware chat**: select a
-  section, type an instruction, the agent streams the edited section back into
-  the same range (pure `buildSelectionMessages` prompt builder + tests).
+- [x] **Agent C3 — direct-edit access + selection-aware chat** — DONE,
+  browser-verified end-to-end through a mock OpenAI provider: select →
+  instruct → streamed replacement of the selection in the textarea; 22 new
+  tests (77 total green); `directEdit` toggle persisted
 - [ ] **Verify C3** — typecheck/lint/tests/build + browser pass (stream into
   textarea in FA, replace selection, undo behavior), commit + push.
 

@@ -13,17 +13,22 @@ export const BUILTIN_SYSTEM_PROMPT = `You are a Markdown assistant embedded in a
 
 /**
  * Pure: flattens chat messages into one prompt string for the session. The
- * system message is skipped (it lives in the session's initialPrompts); all
- * turns before the last are prepended as speaker-labelled context text.
+ * session's own system prompt (BUILTIN_SYSTEM_PROMPT, mirrored in
+ * initialPrompts) is skipped; any OTHER system message (e.g. the
+ * selection-edit directive from ai/edits.ts) is folded in as labelled
+ * instructions so directive-carrying turns survive the session. All turns
+ * before the last are prepended as speaker-labelled context text.
  */
 export function messagesToPrompt(messages: readonly ChatMessage[]): string {
-  const turns = messages.filter((m) => m.role !== 'system' && m.content.trim() !== '');
+  const turns = messages.filter((m) =>
+    m.content.trim() !== '' && !(m.role === 'system' && m.content === BUILTIN_SYSTEM_PROMPT));
   if (turns.length === 0) return '';
   const last = turns[turns.length - 1];
   if (turns.length === 1) return last.content;
   const prior = turns
     .slice(0, -1)
-    .map((m) => (m.role === 'assistant' ? 'Assistant: ' : 'User: ') + m.content)
+    .map((m) =>
+      (m.role === 'assistant' ? 'Assistant: ' : m.role === 'system' ? 'Instructions: ' : 'User: ') + m.content)
     .join('\n\n');
   return `Previous conversation, for context:\n\n${prior}\n\nRespond only to the user's latest message:\n\nUser: ${last.content}`;
 }
