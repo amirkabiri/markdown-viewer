@@ -61,7 +61,7 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
 
 - [ ] Optional host allow-list for `?url=` fetches (audit finding #6)
 - [ ] Drag & drop file-type filter (currently only size-capped)
-- [ ] Dependency update cadence — `npm outdated` review quarterly
+- [ ] Dependency update cadence — `pnpm outdated` review quarterly
   (npm lockfile replaces the old CDN SRI re-hash chore)
 - [ ] CSP `frame-ancestors` unenforceable via meta on Pages — revisit if host changes
 - [ ] AI: document "collaboration mode" ideas (inline suggestions, diff-apply)
@@ -69,6 +69,9 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
 
 ## Working agreements
 
+- Package manager: **pnpm** (lockfile: `pnpm-lock.yaml`; CI uses
+  `pnpm install --frozen-lockfile`; version pinned via package.json
+  `packageManager` field).
 - Continuous delivery: verified deliverable → immediate commit + push, one
   commit per deliverable, `tasks.md` updated in the same commit.
 - `main` must always be deployable — no mid-refactor pushes to the live path.
