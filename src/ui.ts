@@ -96,16 +96,17 @@ export function activateTab(name: string): void {
   $('#panel-paste')!.hidden = name !== 'paste';
 }
 
-/* ---------------- share dialog ---------------- */
+/* ---------------- share ---------------- */
 
-function openShareDialog(): void {
-  const sourceBtn = $<HTMLButtonElement>('#share-copy-source')!;
-  const hasSource = !!state.doc?.url;
-  sourceBtn.disabled = !hasSource;
-  sourceBtn.setAttribute('aria-disabled', String(!hasSource));
-  $<HTMLElement>('#share-chars')!.textContent =
-    editor.value.length.toLocaleString(state.lang === 'fa' ? 'fa-IR' : 'en-US') + ' ' + t('chars');
-  $<HTMLDialogElement>('#share-dialog')!.showModal();
+/** One click: encode the current document and copy its self-contained link. */
+function copyShareLink(): void {
+  void shareEncode(editor.value).then((result) => {
+    if (!result.ok) { toast(t('linkTooLarge'), 'error'); return; }
+    navigator.clipboard.writeText(result.url)
+      .then(() => toast(t('copied'), 'ok'))
+      .catch(() => toast(t('copied'), 'error'));
+    if (result.warn) toast(t('linkWarn'));
+  });
 }
 
 export function readAndLoad(file: File | null): void {
@@ -172,35 +173,7 @@ export function bindUI(): void {
     editor.focus();
   });
 
-  $('#share-btn')!.addEventListener('click', openShareDialog);
-
-  $('#share-close-btn')!.addEventListener('click', () => $<HTMLDialogElement>('#share-dialog')!.close());
-
-  $('#share-copy-content')!.addEventListener('click', async () => {
-    const dialog = $<HTMLDialogElement>('#share-dialog')!;
-    const result = await shareEncode(editor.value);
-    if (!result.ok) {
-      toast(t('linkTooLarge'), 'error');
-      dialog.close();
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(result.url);
-      toast(t('copied'), 'ok');
-    } catch { toast(t('copied'), 'error'); }
-    if (result.warn) toast(t('linkWarn'));
-    dialog.close();
-  });
-
-  $('#share-copy-source')!.addEventListener('click', async () => {
-    const url = state.doc?.url;
-    if (!url) return; // button is disabled in this state anyway
-    try {
-      await navigator.clipboard.writeText(url);
-      toast(t('copied'), 'ok');
-    } catch { toast(t('copied'), 'error'); }
-    $<HTMLDialogElement>('#share-dialog')!.close();
-  });
+  $('#share-btn')!.addEventListener('click', copyShareLink);
 
   $('#dir-btn')!.addEventListener('click', () => {
     state.dir = state.dir === 'auto' ? 'ltr' : state.dir === 'ltr' ? 'rtl' : 'auto';

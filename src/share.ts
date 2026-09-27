@@ -2,9 +2,6 @@
 import { registerI18n } from './i18n.js';
 
 registerI18n({
-  shareTitle: { en: 'Share document', fa: 'هم‌رسانی سند' },
-  copyContentLink: { en: 'Copy content link', fa: 'کپی نشانیِ محتوا' },
-  copySourceLink: { en: 'Copy source link', fa: 'کپی نشانیِ منبع' },
   linkWarn: { en: 'Long link (over 30,000 chars) — may not work everywhere', fa: 'نشانی بسیار بلند است (بیش از ۳۰٬۰۰۰ نویسه) — ممکن است همه‌جا کار نکند' },
   linkTooLarge: { en: 'Document too large for a share link (over 300,000 chars)', fa: 'سند برای هم‌رسانی با نشانی بیش از حد بزرگ است (بیش از ۳۰۰٬۰۰۰ نویسه)' },
   sharedDoc: { en: 'Shared document', fa: 'سند هم‌رسانی‌شده' },

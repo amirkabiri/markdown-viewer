@@ -8,7 +8,7 @@ type Dict = Record<string, string>;
 
 const I18N: Record<Lang, Dict> = {
   en: {
-    appTitle: 'Markdown Viewer',
+    appTitle: 'Qalam',
     togglePanel: 'Toggle panel',
     open: 'Open',
     paneEditor: 'Editor only',
@@ -48,7 +48,7 @@ const I18N: Record<Lang, Dict> = {
     libError: 'A library failed to load — check your connection.',
   },
   fa: {
-    appTitle: 'نمایشگر مارک‌داون',
+    appTitle: 'قلم',
     togglePanel: 'نمایش/بستن پنل',
     open: 'باز کردن',
     paneEditor: 'فقط ویرایشگر',

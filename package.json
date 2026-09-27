@@ -1,5 +1,5 @@
 {
-  "name": "markdown-viewer",
+  "name": "qalam",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -7,7 +7,7 @@
   "engines": {
     "node": ">=22.13"
   },
-  "description": "A bilingual (English / فارسی) split-pane markdown editor & viewer with full RTL support and Mermaid diagrams.",
+  "description": "Collaborative Markdown editing where humans and AI write together — on-device AI (Gemini Nano) or your own OpenAI/Anthropic-compatible service. Persian/RTL-first, Mermaid diagrams, self-contained share links.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
