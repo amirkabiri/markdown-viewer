@@ -1,0 +1,660 @@
+/* AI co-author panel — React Aria Components styling via className +
+   data-* state attributes, colored exclusively with the global tokens
+   (src/styles/tokens.css). Logical properties everywhere: the sheet mirrors
+   automatically in RTL (the kit derives direction from the locale). Layout
+   mirrors legacy's .ai-* stylesheet. */
+
+/* ---------------- the sliding side sheet ---------------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  pointer-events: none;
+}
+
+.panel {
+  pointer-events: auto;
+  position: absolute;
+  inset-inline-end: 0;
+  top: var(--header-h);
+  bottom: 0;
+  width: min(380px, 92vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border-inline-start: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+/* ---------------- header ---------------- */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--pane-head-h);
+  padding-inline: 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  flex: 1;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.closeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.closeButton[data-hovered] {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+/* ---------------- status area ---------------- */
+
+.status {
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--text-muted);
+}
+
+.status:empty {
+  display: none;
+}
+
+.statusNote {
+  margin: 0;
+}
+
+.statusOk {
+  color: var(--ok);
+}
+
+.downloadButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 34px;
+  margin-top: 2px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.downloadButton[data-hovered] {
+  filter: brightness(1.08);
+}
+
+.bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-subtle);
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.barFill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+.barIndet {
+  width: 40%;
+  animation: ai-slide 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes ai-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+
+/* ---------------- settings disclosure ---------------- */
+
+.settings {
+  flex-shrink: 0;
+}
+
+.settingsTrigger {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 30px;
+  padding-inline: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: start;
+}
+
+.settingsTrigger[data-hovered] {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.caret {
+  display: inline-block;
+  transition: transform 0.15s;
+}
+
+.settingsTrigger[aria-expanded='true'] .caret {
+  transform: rotate(90deg);
+}
+
+.settingsBody {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.selectButton,
+.textField {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.selectButton[data-focused],
+.textField[data-focused],
+.selectButton[data-focus-visible] {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.popover {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  min-width: 180px;
+}
+
+.listBox {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  margin: 0;
+  list-style: none;
+  outline: none;
+}
+
+.listBoxItem {
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.listBoxItem[data-focused] {
+  background: var(--bg-subtle);
+}
+
+.listBoxItem[data-selected] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.directEdit {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.directEdit[data-hovered] {
+  color: var(--accent);
+}
+
+.checkboxMark {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.checkboxMark::after {
+  content: '✓';
+  visibility: hidden;
+}
+
+.directEdit[data-selected] .checkboxMark {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.directEdit[data-selected] .checkboxMark::after {
+  visibility: visible;
+}
+
+.saveButton {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding-inline: 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-elev);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.saveButton[data-hovered] {
+  background: var(--bg-subtle);
+}
+
+/* ---------------- messages ---------------- */
+
+.messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg);
+}
+
+.msgUser {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 8px 11px;
+  border-radius: var(--radius);
+  border-end-end-radius: 3px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.msgAssistant {
+  align-self: stretch;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.msgText {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* ---------------- visible tool-call activity ---------------- */
+
+.toolList {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.toolItem {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: var(--text-muted);
+}
+
+.toolName {
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.toolDesc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolStatus {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.toolStatus[data-ok='true'] {
+  color: var(--ok);
+}
+
+.toolItem[data-status='refused'] .toolStatus {
+  color: var(--danger);
+}
+
+.toolItem[data-status='running'] .toolStatus {
+  color: var(--text-muted);
+}
+
+/* ---------------- selection chip + composer ---------------- */
+
+.selChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px 8px;
+  padding: 5px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.composer {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  padding: 0 12px 12px;
+  flex-shrink: 0;
+}
+
+.input {
+  flex: 1;
+  min-height: 36px;
+  max-height: 130px;
+  resize: none;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.input[data-focused] {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.input:disabled {
+  opacity: 0.55;
+}
+
+.sendButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding-inline: 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sendButton[data-hovered]:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.sendButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+  filter: none;
+}
+
+/* ---------------- spinner ---------------- */
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ai-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes ai-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .barIndet {
+    animation: none;
+  }
+}
+
+/* ---------------- consent dialog (4 GB download) ---------------- */
+
+.consentOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.consentModal {
+  width: min(420px, 90vw);
+  outline: none;
+}
+
+.consentDialog {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.consentTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.consentBody {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--text-muted);
+}
+
+.consentActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.consentDownload,
+.consentNotNow {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding-inline: 14px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.consentDownload {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.consentDownload[data-hovered] {
+  filter: brightness(1.08);
+}
+
+.consentNotNow {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev);
+  color: var(--text);
+}
+
+.consentNotNow[data-hovered] {
+  background: var(--bg-subtle);
+}
+
+/* ---------------- toasts ---------------- */
+
+.toastRegion {
+  position: fixed;
+  inset-block-end: 12px;
+  inset-inline-end: 12px;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: min(340px, 90vw);
+}
+
+.toast {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--accent);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+  padding: 8px 12px;
+  font-size: 12.5px;
+  color: var(--text);
+}
