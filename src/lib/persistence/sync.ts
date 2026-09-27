@@ -30,7 +30,7 @@ export function createTabSyncHub(channelName: string = DEFAULT_SYNC_CHANNEL): Ta
   channel.onmessage = (messageEvent: MessageEvent) => {
     const event = messageEvent.data as TabSyncEvent | null;
     if (!event || event.from === clientId) return;
-    for (const listener of listeners) listener(event);
+    listeners.forEach((listener) => listener(event));
   };
 
   return {
@@ -64,7 +64,7 @@ export function createWebLockAdapter(manager: LockManager): DocumentLockAdapter 
       return new Promise<LockAcquisition>((resolve) => {
         let settled = false;
         let held = false;
-        void manager
+        manager
           .request(name, { ifAvailable }, (lock) => {
             if (!lock) {
               settled = true;
@@ -96,18 +96,20 @@ export function createWebLockAdapter(manager: LockManager): DocumentLockAdapter 
     steal(id) {
       const name = LOCK_NAME_PREFIX + id;
       return new Promise<LockAcquisition>((resolve, reject) => {
-        void manager
-          .request(name, { steal: true }, () => {
-            // The stolen hold lasts until the returned handle is released.
-            return new Promise<void>((releaseLock) => {
+        // The stolen hold lasts until the returned handle is released.
+        manager
+          .request(
+            name,
+            { steal: true },
+            () => new Promise<void>((releaseLock) => {
               resolve({
                 held: true,
                 release() {
                   releaseLock();
                 },
               });
-            });
-          })
+            }),
+          )
           .catch(reject);
       });
     },
@@ -154,7 +156,7 @@ interface HeldLock {
 /** Real contention semantics inside one process: real steal, real onLost. */
 export function createInProcessLockAdapter(): DocumentLockAdapter {
   const held = new Map<string, HeldLock>();
-  const waiters = new Map<string, Array<() => void>>();
+  const waiters = new Map<string, (() => void)[]>();
 
   const pump = (id: string): void => {
     const next = waiters.get(id)?.shift();

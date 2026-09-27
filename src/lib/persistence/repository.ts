@@ -58,7 +58,7 @@ interface SessionState {
   listeners: Set<(event: SessionEvent) => void>;
 }
 
-export function createDocumentRepository(
+export default function createDocumentRepository(
   driver: PersistenceDriver,
   opts: DocumentRepositoryOptions = {},
 ): DocumentRepository {
@@ -84,21 +84,20 @@ export function createDocumentRepository(
 
   /* ---------------- cache + change fan-out ---------------- */
 
-  const sortedSnapshot = (): DocumentRecord[] =>
-    [...cache.values()]
-      .sort((a, b) => a.sortIndex - b.sortIndex || a.updatedAt - b.updatedAt)
-      .map((record) => ({ ...record }));
+  const sortedSnapshot = (): DocumentRecord[] => [...cache.values()]
+    .sort((a, b) => a.sortIndex - b.sortIndex || a.updatedAt - b.updatedAt)
+    .map((record) => ({ ...record }));
 
   const notify = (type: RepositoryChangeType, ids: string[], remote: boolean): void => {
-    for (const listener of listeners) listener({ type, ids, remote });
+    listeners.forEach((listener) => listener({ type, ids, remote }));
   };
 
   /** Rebuild the cache from the driver, keeping uncommitted local edits on top. */
   const refreshCache = async (): Promise<void> => {
     const all = await driver.list();
     cache.clear();
-    for (const record of all) cache.set(record.id, record);
-    for (const [id, pending] of dirty) cache.set(id, pending);
+    all.forEach((record) => cache.set(record.id, record));
+    dirty.forEach((pending, id) => cache.set(id, pending));
   };
 
   /** Read-through: trust the cache unless the id is unknown to it. */
@@ -129,7 +128,7 @@ export function createDocumentRepository(
       await Promise.all(pending.map(([, record]) => driver.put({ ...record })));
       await Promise.all(pending.map(([id]) => adoptStored(id)));
     } catch (err) {
-      for (const [id, record] of pending) dirty.set(id, record);
+      pending.forEach(([id, record]) => dirty.set(id, record));
       throw err;
     }
 
@@ -177,7 +176,7 @@ export function createDocumentRepository(
     const target =
       opts.focusTarget ?? (globalThis as { window?: EventTarget }).window;
     if (!target) return;
-    const signal = focusController.signal;
+    const { signal } = focusController;
     target.addEventListener('focus', runReconcile, { signal });
     target.addEventListener('visibilitychange', () => {
       const doc = (globalThis as { document?: { visibilityState?: string } }).document;
@@ -186,32 +185,11 @@ export function createDocumentRepository(
     }, { signal });
   };
 
-  /* ---------------- lock loss: preserve the dirty buffer ---------------- */
-
-  const stealPreserveBuffer = async (state: SessionState): Promise<void> => {
-    const id = state.session.id;
-    let copyId: string | null = null;
-    const pending = dirty.get(id);
-    if (pending) {
-      const copy = await repo.create({
-        name: `${pending.name} (copy)`,
-        content: pending.content,
-      });
-      copyId = copy.id;
-      dirty.delete(id);
-    }
-    state.mode = 'readonly';
-    state.release = () => {};
-    for (const listener of state.listeners) listener({ type: 'stolen', copyId });
-  };
-
-  const onLockLost = (id: string): void => {
-    const state = sessions.get(id);
-    if (!state || state.mode !== 'edit') return;
-    stealPreserveBuffer(state).catch(swallowCommitError);
-  };
-
   /* ---------------- the repository ---------------- */
+
+  // Assigned after the repo object exists (the handler needs repo.create to
+  // preserve the dirty buffer as a copy record).
+  let onLockLost: (id: string) => void = () => {};
 
   const repo: DocumentRepository = {
     async init() {
@@ -319,7 +297,7 @@ export function createDocumentRepository(
       focusController.abort();
       if (initialized) await commitDirty().catch(swallowCommitError);
       dirty.clear();
-      for (const state of sessions.values()) state.release();
+      sessions.forEach((state) => state.release());
       sessions.clear();
       hub?.close();
       await driver.close();
@@ -376,6 +354,40 @@ export function createDocumentRepository(
       sessions.set(id, state);
       return session;
     },
+  };
+
+  /** Lock lost to another tab: preserve the dirty buffer, flip readonly, emit. */
+  function stealPreserveBuffer(id: string): Promise<void> {
+    const state = sessions.get(id);
+    if (!state) return Promise.resolve();
+    let copyId: string | null = null;
+    const pending = dirty.get(id);
+    if (pending) {
+      dirty.delete(id);
+      return repo
+        .create({ name: `${pending.name} (copy)`, content: pending.content })
+        .then((copy) => {
+          copyId = copy.id;
+        })
+        .then(() => {
+          const current = sessions.get(id);
+          if (!current) return;
+          current.mode = 'readonly';
+          current.release = () => {};
+          current.listeners.forEach((listener) => listener({ type: 'stolen', copyId }));
+        });
+    }
+    state.mode = 'readonly';
+    state.release = () => {};
+    state.listeners.forEach((listener) => listener({ type: 'stolen', copyId }));
+    return Promise.resolve();
+  }
+
+  // Fired by the lock adapter when another tab steals a lock we held.
+  onLockLost = (id: string): void => {
+    const state = sessions.get(id);
+    if (!state || state.mode !== 'edit') return;
+    stealPreserveBuffer(id).catch(swallowCommitError);
   };
 
   return repo;

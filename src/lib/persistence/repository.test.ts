@@ -8,10 +8,12 @@
 // revisions climb monotonically across tabs.
 
 import { IDBFactory } from 'fake-indexeddb';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach, describe, expect, it, vi,
+} from 'vitest';
 import { createIndexedDbDriver } from './indexeddb-driver';
-import { createMemoryDriver } from './memory-driver';
-import { createDocumentRepository } from './repository';
+import createMemoryDriver from './memory-driver';
+import createDocumentRepository from './repository';
 import { createInProcessLockAdapter, createTabSyncHub } from './sync';
 import type {
   DocumentLockAdapter,
@@ -35,7 +37,7 @@ function useDebounceTimers(): void {
 }
 
 function makeClock(): { now: () => number } {
-  let tick = 1000;
+  const tick = 1000;
   return { now: () => tick };
 }
 
@@ -114,7 +116,9 @@ async function makeTwoTabs(options: { closeHubB?: boolean; focusB?: EventTarget 
 
   const tabA = await mkRepo(hubA);
   const tabB = await mkRepo(hubB, options.focusB);
-  return { tabA, tabB, hubA, hubB };
+  return {
+    tabA, tabB, hubA, hubB,
+  };
 }
 
 describe('createDocumentRepository (single tab)', () => {
@@ -393,7 +397,7 @@ describe('createDocumentRepository (two tabs, one database)', () => {
   it('reconciles missed remote changes on focus as a backstop', async () => {
     useDebounceTimers();
     const focusB = new EventTarget();
-    const { tabA, tabB, hubB } = await makeTwoTabs({ closeHubB: true, focusB });
+    const { tabA, tabB } = await makeTwoTabs({ closeHubB: true, focusB });
     const events: RepositoryChangeEvent[] = [];
     tabB.onChange((event) => events.push(event));
 

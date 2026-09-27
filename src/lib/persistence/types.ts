@@ -60,10 +60,14 @@ export type PersistenceErrorCode =
 export class PersistenceError extends Error {
   readonly code: PersistenceErrorCode;
 
+  /** Declared locally: the ES2020 lib target predates ErrorOptions. */
+  readonly cause?: unknown;
+
   constructor(code: PersistenceErrorCode, message: string, options?: { cause?: unknown }) {
-    super(message, options);
+    super(message);
     this.name = 'PersistenceError';
     this.code = code;
+    this.cause = options?.cause;
   }
 }
 
@@ -98,8 +102,14 @@ export interface DocumentSession {
   onEvent(cb: (event: SessionEvent) => void): () => void;
 }
 
-/** Terminal session events. 'stolen' always carries the preserved copy's id. */
-export type SessionEvent = { type: 'stolen'; copyId: string };
+/**
+ * Terminal session events. 'stolen' carries the preserved copy's id
+ * (null when the dirty buffer was clean — nothing to preserve).
+ */
+export interface SessionEvent {
+  type: 'stolen';
+  copyId: string | null;
+}
 
 /** Options for createDocumentRepository — everything injectable for tests. */
 export interface DocumentRepositoryOptions {
@@ -122,7 +132,11 @@ export interface DocumentRepository {
   init(): Promise<void>;
   list(): Promise<DocumentRecord[]>;
   get(id: string): Promise<DocumentRecord | null>;
-  create(input: { name: string; content: string; source?: DocumentSource }): Promise<DocumentRecord>;
+  create(input: {
+    name: string;
+    content: string;
+    source?: DocumentSource;
+  }): Promise<DocumentRecord>;
   remove(id: string): Promise<void>;
   rename(id: string, name: string): Promise<void>;
   reorder(orderedIds: string[]): Promise<void>;
@@ -183,6 +197,10 @@ export interface DocumentLockAdapter {
     id: string,
     opts?: { ifAvailable?: boolean; onLost?: () => void },
   ): Promise<LockAcquisition>;
-  /** Forcibly take the lock from any holder (Web Locks { steal: true }). */
-  steal(id: string): Promise<void>;
+  /**
+   * Forcibly take the lock from any holder (Web Locks { steal: true }).
+   * Returns the new handle — the stealing tab holds the lock and must
+   * release() it when done.
+   */
+  steal(id: string): Promise<LockAcquisition>;
 }

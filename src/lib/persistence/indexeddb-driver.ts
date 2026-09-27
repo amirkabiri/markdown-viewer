@@ -42,12 +42,17 @@ function requestDone<T>(request: IDBRequest<T>): Promise<T> {
 /** Resolve when a transaction commits; rejects with the abort reason. */
 function transactionDone(tx: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onabort = () => {
+    tx.addEventListener('complete', () => resolve());
+    tx.addEventListener('abort', () => {
       reject(
         new PersistenceError('unknown', 'IndexedDB transaction aborted', { cause: tx.error }),
       );
-    };
+    });
+    tx.addEventListener('error', () => {
+      reject(
+        new PersistenceError('unknown', 'IndexedDB transaction failed', { cause: tx.error }),
+      );
+    });
   });
 }
 
@@ -120,8 +125,9 @@ export function createIndexedDbDriver(opts: IndexedDbDriverOptions = {}): Persis
         db = await opened;
       } catch (err) {
         // The open may still complete after a block/error was reported —
-        // never leak the connection in that case.
-        void opened.catch(() => {});
+        // never leak the connection in that case. The rejection itself was
+        // already handled above, so the second handler is a silent no-op.
+        opened.catch(() => {});
         if (request.readyState === 'done' && request.result) request.result.close();
         throw err;
       }
@@ -136,7 +142,8 @@ export function createIndexedDbDriver(opts: IndexedDbDriverOptions = {}): Persis
     async list() {
       const database = assertOpen();
       const tx = database.transaction(storeName, 'readonly');
-      const all = await requestDone(tx.objectStore(storeName).getAll() as IDBRequest<DocumentRecord[]>);
+      const request = tx.objectStore(storeName).getAll() as IDBRequest<DocumentRecord[]>;
+      const all = await requestDone(request);
       return all.sort(
         (a, b) => a.sortIndex - b.sortIndex || a.updatedAt - b.updatedAt,
       );

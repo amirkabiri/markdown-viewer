@@ -9,14 +9,16 @@
 import type { DocumentRecord, PersistenceDriver } from './types';
 
 /** Records to prepopulate the store with (copied, never aliased). */
-export function createMemoryDriver(seed: readonly DocumentRecord[] = []): PersistenceDriver {
+export default function createMemoryDriver(
+  seed: readonly DocumentRecord[] = [],
+): PersistenceDriver {
   const docs = new Map<string, DocumentRecord>();
-  for (const record of seed) docs.set(record.id, { ...record });
+  seed.forEach((record) => docs.set(record.id, { ...record }));
 
-  const sortedValues = (): DocumentRecord[] =>
-    [...docs.values()].sort(
-      (a, b) => a.sortIndex - b.sortIndex || a.updatedAt - b.updatedAt,
-    );
+  function bySortOrder(a: DocumentRecord, b: DocumentRecord): number {
+    return a.sortIndex - b.sortIndex || a.updatedAt - b.updatedAt;
+  }
+  const sortedValues = (): DocumentRecord[] => [...docs.values()].sort(bySortOrder);
 
   return {
     name: 'memory',

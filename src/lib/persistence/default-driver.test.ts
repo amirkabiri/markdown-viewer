@@ -5,7 +5,9 @@
 // the scripted/no-factory cases prove the fallback paths.
 
 import { IDBFactory } from 'fake-indexeddb';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach, describe, expect, it, vi,
+} from 'vitest';
 import { createDefaultDriver } from './default-driver';
 
 /** Silence and capture fallback warnings for the duration of one test. */

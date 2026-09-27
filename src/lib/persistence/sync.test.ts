@@ -5,7 +5,9 @@
 // adapter (same semantics as the Web Locks adapter) plus the degradation
 // path of createDefaultLockAdapter.
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach, describe, expect, it, vi,
+} from 'vitest';
 import {
   createDefaultLockAdapter,
   createInProcessLockAdapter,
@@ -29,7 +31,9 @@ describe('createTabSyncHub', () => {
 
     await vi.waitFor(() => {
       expect(received).toEqual([
-        { type: 'updated', ids: ['doc-1'], revision: 3, from: sender.clientId },
+        {
+          type: 'updated', ids: ['doc-1'], revision: 3, from: sender.clientId,
+        },
       ]);
     });
 
@@ -43,7 +47,9 @@ describe('createTabSyncHub', () => {
     hub.subscribe((event) => received.push(event));
 
     hub.broadcast({ type: 'created', ids: ['doc-1'] });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
 
     expect(received).toEqual([]);
     hub.close();
@@ -57,7 +63,9 @@ describe('createTabSyncHub', () => {
 
     unsubscribe();
     sender.broadcast({ type: 'removed', ids: ['doc-1'] });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
 
     expect(received).toEqual([]);
     sender.close();
@@ -72,7 +80,9 @@ describe('createTabSyncHub', () => {
 
     receiver.close();
     sender.broadcast({ type: 'reordered', ids: ['b', 'a'] });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
 
     expect(received).toEqual([]);
     sender.close();
@@ -105,7 +115,12 @@ describe('createInProcessLockAdapter', () => {
   it('fires the holder’s onLost and transfers the lock on steal', async () => {
     const locks = createInProcessLockAdapter();
     let lost = false;
-    const first = await locks.acquire('doc-1', { ifAvailable: true, onLost: () => { lost = true; } });
+    const first = await locks.acquire('doc-1', {
+      ifAvailable: true,
+      onLost: () => {
+        lost = true;
+      },
+    });
 
     const stolen = await locks.steal('doc-1');
 
@@ -147,7 +162,9 @@ describe('createInProcessLockAdapter', () => {
       resolved = true;
       return result;
     });
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 10);
+    });
     expect(resolved).toBe(false);
 
     first.release();
@@ -201,7 +218,9 @@ describe('createWebLockAdapter (node implements real Web Locks)', () => {
 
     first.release();
     // Web Locks release asynchronously — the lock is free after a macrotask.
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
     const third = await locks.acquire('web-doc-1', { ifAvailable: true });
     expect(third.held).toBe(true);
     third.release();

@@ -9,7 +9,7 @@
 // storeName, injected factory for tests).
 
 import { createIndexedDbDriver } from './indexeddb-driver';
-import { createMemoryDriver } from './memory-driver';
+import createMemoryDriver from './memory-driver';
 import type { IndexedDbDriverOptions } from './indexeddb-driver';
 import type { PersistenceDriver } from './types';
 
@@ -29,7 +29,9 @@ function warnFallback(message: string): void {
  * with a memory driver after warning once, so a broken/blocked IndexedDB
  * costs data durability for the session, not app availability.
  */
-export async function createDefaultDriver(opts: DefaultDriverOptions = {}): Promise<PersistenceDriver> {
+export async function createDefaultDriver(
+  opts: DefaultDriverOptions = {},
+): Promise<PersistenceDriver> {
   const factory = opts.factory ?? globalThis.indexedDB;
 
   if (!factory) {

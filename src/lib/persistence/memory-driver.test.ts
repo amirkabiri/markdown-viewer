@@ -5,7 +5,7 @@
 // bumps taken from the stored record (never from a stale caller copy).
 
 import { describe, expect, it } from 'vitest';
-import { createMemoryDriver } from './memory-driver';
+import createMemoryDriver from './memory-driver';
 import type { DocumentRecord } from './types';
 
 let nextId = 0;
