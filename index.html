@@ -2,220 +2,44 @@
 <html lang="en" dir="ltr" data-theme="light">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net; img-src * data:; media-src * data:; connect-src *; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <!--
+    CSP — delta vs the vanilla app (style-src changes only):
+
+    - style-src-attr 'unsafe-inline' (NEW): React writes presentation via
+      style="" attributes, and mermaid emits style attributes inside its SVG
+      output. Both are attribute styles, so they get their own narrow
+      directive instead of a blanket style-src allowance.
+    - style-src keeps 'unsafe-inline': two inline element styles still need it —
+      the Vite dev server injects <style> tags for HMR, and mermaid embeds
+      <style> inside its SVGs at runtime. Production CSS itself ships as a
+      bundled <link> ('self'); once mermaid styling moves into bundled CSS,
+      'unsafe-inline' can be dropped from style-src entirely.
+    - script-src 'self' is unchanged. `pnpm dev` alone relaxes it (React Fast
+      Refresh injects an inline module preamble); see
+      relaxCspForDevServer() in vite.config.ts. Production stays strict — the
+      e2e boot spec asserts no console errors against this exact policy.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src-attr 'unsafe-inline'; font-src https://cdn.jsdelivr.net; img-src * data:; media-src * data:; connect-src *; base-uri 'none'; form-action 'none'; object-src 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Qalam — collaborative Markdown editor</title>
   <meta name="description" content="Qalam (قلم): a collaborative Markdown editor where humans and AI write together — on-device AI (Gemini Nano) or your own OpenAI/Anthropic-compatible service. Persian/RTL-first, Mermaid diagrams, self-contained share links.">
   <meta name="theme-color" content="#0969da">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230969da'/%3E%3Cpath d='M32 10c-7 7-13 15-13 22.5C19 40 25 46.5 32 46.5S45 40 45 32.5C45 25 39 17 32 10Z' fill='none' stroke='white' stroke-width='3.5' stroke-linejoin='round'/%3E%3Cpath d='M32 15v20' stroke='white' stroke-width='3.5' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='40.5' r='3.5' fill='white'/%3E%3C/svg%3E">
 
+  <!-- Pre-paint boot: restores theme/lang/dir from storage before first paint -->
   <script src="./boot.js"></script>
 
+  <!-- Persian UI font (falls through to it from the --sans token stack) -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vazirmatn@33.0.3/Vazirmatn-font-face.css" crossorigin="anonymous">
-  <link id="hljs-theme" rel="stylesheet" href="./style/hljs/github.css">
-  <link rel="stylesheet" href="style/base.css">
-  <link rel="stylesheet" href="style/markdown.css">
-  <link rel="stylesheet" href="style/ui.css">
 </head>
 <body>
+  <!-- React mounts here; ?file= / ?url= / #d= document loading is handled
+       inside the app (no routing layer) -->
+  <div id="root"></div>
+  <noscript><p>Qalam requires JavaScript / قلم به جاوااسکریپت نیاز دارد.</p></noscript>
 
-  <!-- ======= Top bar ======= -->
-  <header class="topbar">
-    <button id="panel-btn" class="icon-btn" aria-label="Toggle panel" data-i18n-title="togglePanel" aria-expanded="false">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-    </button>
-
-    <a class="brand" href="?file=README.md" aria-label="Home">
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5C8.5 6 5.5 10.5 5.5 14.5c0 4.1 2.9 7 6.5 7s6.5-2.9 6.5-7c0-4-3-8.5-6.5-12Z"/><path d="M12 5.5v9"/><circle cx="12" cy="16" r="1.4" fill="currentColor" stroke="none"/></svg>
-      <span data-i18n="appTitle">Qalam</span>
-    </a>
-
-    <span class="spacer"></span>
-
-    <div class="segmented" id="pane-modes" role="group" aria-label="Pane layout">
-      <button data-mode="editor" data-i18n-title="paneEditor" aria-label="Editor only">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-      </button>
-      <button data-mode="split" class="active" data-i18n-title="paneSplit" aria-label="Split view">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>
-      </button>
-      <button data-mode="preview" data-i18n-title="panePreview" aria-label="Preview only">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-      </button>
-    </div>
-
-    <button id="open-btn" class="btn primary">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-      <span data-i18n="open">Open</span>
-    </button>
-
-    <button id="share-btn" class="icon-btn" data-i18n-title="copyLink" aria-label="Copy link">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-    </button>
-
-    <button id="dir-btn" class="icon-btn" data-i18n-title="toggleDir" aria-label="Toggle text direction">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
-    </button>
-
-    <button id="ai-btn" class="icon-btn" data-i18n-title="aiButton" aria-label="AI assistant">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2z"/></svg>
-    </button>
-
-    <button id="lang-btn" class="btn ghost lang-btn" data-i18n-title="toggleLang" aria-label="Switch language">فا</button>
-
-    <button id="theme-btn" class="icon-btn" data-i18n-title="toggleTheme" aria-label="Toggle theme">
-      <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-    </button>
-
-    <a id="gh-link" class="icon-btn" href="https://github.com/amirkabiri/qalam" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.66-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.11-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.65 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.63-5.49 5.92.43.38.82 1.11.82 2.24l-.01 3.32c0 .31.21.69.83.57A12 12 0 0 0 12 .3z"/></svg>
-    </a>
-  </header>
-
-  <!-- ======= Workspace: editor | divider | preview ======= -->
-  <div class="workspace mode-split" id="workspace">
-    <section class="pane editor-pane" aria-label="Markdown editor">
-      <div class="pane-head">
-        <span class="pane-label" data-i18n="editor">Editor</span>
-        <span id="doc-name" class="doc-name"></span>
-      </div>
-      <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off"
-                aria-label="Markdown source" data-i18n-aria="editorAria" placeholder="# Start writing… / بنویسید…"></textarea>
-      <div class="statusbar">
-        <span id="word-count">0</span><span data-i18n="words">words</span>
-        <span class="dot">·</span>
-        <span id="char-count">0</span><span data-i18n="chars">chars</span>
-      </div>
-    </section>
-
-    <div id="divider" role="separator" aria-orientation="vertical" title="Drag to resize · double-click to reset"></div>
-
-    <section class="pane preview-pane" aria-label="Preview">
-      <div class="pane-head">
-        <span class="pane-label" data-i18n="preview">Preview</span>
-      </div>
-      <div class="preview-scroll" id="preview-scroll">
-        <article id="content" class="markdown-body" aria-live="polite"></article>
-      </div>
-    </section>
-  </div>
-
-  <!-- ======= Slide-over panel: TOC, documents, recent ======= -->
-  <aside id="panel" aria-label="Sidebar panel">
-    <section class="side-section" id="toc-section" hidden>
-      <h2 data-i18n="contents">On this page</h2>
-      <nav id="toc" class="toc"></nav>
-    </section>
-
-    <section class="side-section">
-      <h2 data-i18n="documents">Documents</h2>
-      <a class="side-link" href="?file=README.md"><span data-i18n="docReadme">About this viewer</span></a>
-      <a class="side-link" href="?file=samples/sample-en.md"><span data-i18n="docSampleEn">Feature tour (EN)</span></a>
-      <a class="side-link" href="?file=samples/sample-fa.md"><span data-i18n="docSampleFa">Feature tour (فارسی)</span></a>
-      <button class="side-link" id="new-doc-btn" type="button">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        <span data-i18n="newDoc">New document</span>
-      </button>
-    </section>
-
-    <section class="side-section" id="recent-section" hidden>
-      <h2 data-i18n="recent">Recent</h2>
-      <div id="recent-list"></div>
-    </section>
-
-    <footer class="side-footer">
-      <span data-i18n="footer">Free &amp; open source</span> · <a href="https://github.com/amirkabiri/qalam" target="_blank" rel="noopener noreferrer">GitHub</a>
-    </footer>
-  </aside>
-  <div id="scrim" hidden></div>
-
-  <!-- ======= Open dialog ======= -->
-  <dialog id="open-dialog">
-    <div class="dialog-head">
-      <h2 data-i18n="openTitle">Open a document</h2>
-      <button id="dialog-close-btn" class="icon-btn" aria-label="Close" data-i18n-title="close">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-
-    <div class="tabs" role="tablist">
-      <button class="tab active" role="tab" data-tab="url" data-i18n="tabUrl">From URL</button>
-      <button class="tab" role="tab" data-tab="upload" data-i18n="tabUpload">Upload file</button>
-      <button class="tab" role="tab" data-tab="paste" data-i18n="tabPaste">Paste text</button>
-    </div>
-
-    <div class="tab-panel" id="panel-url">
-      <form id="url-form">
-        <input id="url-input" type="url" required autocomplete="off" spellcheck="false"
-               placeholder="https://… or a github.com blob link"
-               data-i18n-ph="urlPlaceholder">
-        <button type="submit" class="btn primary" data-i18n="load">Load</button>
-      </form>
-      <p class="hint" data-i18n="urlHint">Tip: a GitHub <code>blob</code> link is converted to a raw URL automatically.</p>
-    </div>
-
-    <div class="tab-panel" id="panel-upload" hidden>
-      <label class="file-drop" for="file-input">
-        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
-        <span data-i18n="chooseFile">Choose a .md file or drop it here</span>
-      </label>
-      <input id="file-input" type="file" accept=".md,.markdown,.mdx,.txt,text/markdown,text/plain">
-    </div>
-
-    <div class="tab-panel" id="panel-paste" hidden>
-      <textarea id="paste-input" rows="8" placeholder="# Paste Markdown here…" data-i18n-ph="pastePlaceholder"></textarea>
-      <button id="paste-load-btn" class="btn primary" data-i18n="render">Insert &amp; render</button>
-    </div>
-  </dialog>
-
-  <!-- ======= Overlays ======= -->
-  <div id="drop-overlay" aria-hidden="true">
-    <div class="drop-box">
-      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
-      <p data-i18n="dropHere">Drop your .md file to load it</p>
-    </div>
-  </div>
-
-  <div id="loading" hidden aria-hidden="true">
-    <div class="spinner"></div>
-  </div>
-
-  <div id="toast" role="status"></div>
-
-  <!-- ======= Embedded fallback document (shown when README can't be fetched, e.g. file://) ======= -->
-  <script type="text/markdown" id="welcome-md">
-# Markdown Viewer / نمایشگر مارک‌داون
-
-**English.** Write on the left, read on the right. Paste, upload or link any
-Markdown file — with full RTL support, syntax highlighting and
-[Mermaid](https://mermaid.js.org) diagrams. No build step, no server.
-
-**فارسی.** سمت چپ بنویسید، سمت راست بخوانید. هر فایل مارک‌داونی را وارد کنید —
-با پشتیبانی کامل از راست‌به‌چپ، هایلایت کد و نمودارهای **مرمید**، بدون نیاز به
-نصب یا سرور.
-
-## Try it / امتحان کنید
-
-- Drag & drop a `.md` file anywhere on this page
-- یک فایل `.md` را در هر جای صفحه رها کنید
-- Press **Open** and paste Markdown text
-- دکمهٔ **باز کردن** را بزنید و متن مارک‌داون بچسبانید
-
-## Mermaid smoke test
-
-```mermaid
-flowchart LR
-    A["Hello / سلام"] --> B{Works?}
-    B -- Yes --> C["✅ All set"]
-    B -- No --> D["Check the console"]
-```
-  </script>
-
-  <noscript><p style="padding:2rem;text-align:center">This viewer requires JavaScript / این نمایشگر به جاوااسکریپت نیاز دارد.</p></noscript>
-
-  <!-- ======= App entry (bundled: marked, DOMPurify, highlight.js, mermaid) ======= -->
-  <script type="module" src="/src/main.ts"></script>
+  <!-- App entry -->
+  <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

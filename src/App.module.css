@@ -1,0 +1,76 @@
+/* App shell styles — CSS Modules, one module per component.
+   Class names are camelCased so they read as `styles.topBar` in TSX. */
+
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--header-h);
+  padding-inline: 10px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--bg-elev) 85%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 60;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 15.5px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.brand:hover {
+  background: var(--bg-subtle);
+}
+
+.brandMark {
+  color: var(--accent);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+  padding: 24px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.footerLink {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.footerLink:hover {
+  text-decoration: underline;
+}
