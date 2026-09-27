@@ -1,5 +1,6 @@
 // Module: workspace — editor bindings, scroll sync, divider drag, pane modes, content direction. Owner of setPaneMode/applySplit/applyDir/bindEditor/bindScrollSync/initDivider.
 import { $$, state, store, editor, preview, previewScroll, workspace, divider, BLOCK_SEL, detectDir, updateCounts } from './state.js';
+import type { PaneMode } from './state.js';
 import { scheduleRender } from './markdown.js';
 import { updateSpy } from './ui.js';
 
@@ -8,7 +9,7 @@ let spyTick = false;
 
 /* ---------------- pane modes + divider ---------------- */
 
-export function setPaneMode(mode, { save = true } = {}) {
+export function setPaneMode(mode: PaneMode, { save = true }: { save?: boolean } = {}): void {
   state.mode = mode;
   workspace.classList.remove('mode-editor', 'mode-split', 'mode-preview');
   workspace.classList.add('mode-' + mode);
@@ -16,20 +17,20 @@ export function setPaneMode(mode, { save = true } = {}) {
   if (save) store.set('mode', mode);
 }
 
-export function applySplit() {
-  const saved = store.get('split', null);
+export function applySplit(): void {
+  const saved = store.get<string | null>('split', null);
   if (saved) workspace.style.setProperty('--split', saved);
 }
 
-export function isSplit() { return state.mode === 'split'; }
+export function isSplit(): boolean { return state.mode === 'split'; }
 
-export function initDivider() {
+export function initDivider(): void {
   divider.addEventListener('pointerdown', (e) => {
     if (!isSplit()) return;
     divider.setPointerCapture(e.pointerId);
     divider.classList.add('dragging');
     const rect = workspace.getBoundingClientRect();
-    const move = (ev) => {
+    const move = (ev: PointerEvent) => {
       let frac = (ev.clientX - rect.left) / rect.width;
       if (document.documentElement.dir === 'rtl') frac = 1 - frac;
       frac = Math.min(0.8, Math.max(0.2, frac));
@@ -52,7 +53,7 @@ export function initDivider() {
 
 /* ---------------- editor <-> preview scroll sync ---------------- */
 
-export function bindScrollSync() {
+export function bindScrollSync(): void {
   editor.addEventListener('scroll', () => {
     if (!isSplit() || Date.now() < lockUntil) return;
     lockUntil = Date.now() + 60;
@@ -73,7 +74,7 @@ export function bindScrollSync() {
 /* ---------------- editor events ---------------- */
 
 
-export function bindEditor() {
+export function bindEditor(): void {
   editor.addEventListener('input', () => {
     updateCounts();
     if (state.dir === 'auto') editor.dir = detectDir(editor.value);
@@ -84,8 +85,8 @@ export function bindEditor() {
     if (e.key === 'Tab' && !e.shiftKey) {
       e.preventDefault();
       const { selectionStart: s, selectionEnd: en } = editor;
-      editor.value = editor.value.slice(0, s) + '  ' + editor.value.slice(en);
-      editor.selectionStart = editor.selectionEnd = s + 2;
+      editor.value = editor.value.slice(0, s!) + '  ' + editor.value.slice(en!);
+      editor.selectionStart = editor.selectionEnd = s! + 2;
       editor.dispatchEvent(new Event('input'));
     }
   });
@@ -93,11 +94,11 @@ export function bindEditor() {
 
 /* ---------------- content direction ---------------- */
 
-export function applyDir() {
+export function applyDir(): void {
   const mode = state.dir;
   editor.dir = mode === 'auto' ? detectDir(editor.value) : mode;
   if (mode === 'auto') {
-    preview.dir = detectDir(preview.textContent);
+    preview.dir = detectDir(preview.textContent ?? '');
     $$(BLOCK_SEL, preview).forEach((el) => { el.dir = 'auto'; });
   } else {
     preview.dir = mode;

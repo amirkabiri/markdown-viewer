@@ -1,4 +1,7 @@
 // Module: markdown — render pipeline: marked + DOMPurify + highlight.js + mermaid. Owner of renderPreview/enhance/scheduleRender/scrollToHash/initMarked.
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+import hljs from 'highlight.js/lib/common';
 import { $$, state, editor, preview, MAX_INPUT_BYTES, slugify, toast } from './state.js';
 import { t, registerI18n } from './i18n.js';
 import { loadUrl } from './documents.js';
@@ -11,14 +14,14 @@ registerI18n({
   mermaidError: { en: 'Mermaid diagram error', fa: 'خطا در نمودار مرمید' },
 });
 
-let renderTimer = 0;
+let renderTimer: ReturnType<typeof setTimeout> | undefined;
 
-export function scheduleRender() {
+export function scheduleRender(): void {
   clearTimeout(renderTimer);
   renderTimer = setTimeout(renderPreview, 300);
 }
 
-export async function renderPreview() {
+export async function renderPreview(): Promise<void> {
   clearTimeout(renderTimer);
   const id = ++state.renderId;
   const src = editor.value.replace(/\r\n?/g, '\n');
@@ -32,19 +35,14 @@ export async function renderPreview() {
     return;
   }
 
-  if (!window.marked || !window.DOMPurify) {
-    preview.textContent = src;
-    return;
-  }
-
   let html = '';
   try {
-    html = marked.parse(src);
+    html = marked.parse(src) as string; // sync (async option never enabled)
   } catch (err) {
     html = '<p></p>';
     const note = document.createElement('div');
     note.className = 'error-note';
-    note.textContent = String(err.message || err);
+    note.textContent = (err instanceof Error && err.message) || String(err);
     preview.appendChild(note);
   }
   preview.innerHTML = DOMPurify.sanitize(html);
@@ -55,12 +53,12 @@ export async function renderPreview() {
   updateSpy();
 }
 
-async function enhance() {
+async function enhance(): Promise<void> {
   const base = (state.doc && state.doc.baseUrl) || location.href;
 
   /* Links: resolve relative hrefs against the document URL,
      turn *.md links into in-app navigation, open the rest in a new tab. */
-  $$('a[href]', preview).forEach((a) => {
+  $$<HTMLAnchorElement>('a[href]', preview).forEach((a) => {
     const href = a.getAttribute('href') || '';
     if (!href || href.startsWith('#')) return;
     if (!/^(https?:)?\/\//i.test(href) && !/^[a-z][a-z0-9+.-]*:/i.test(href)) {
@@ -75,7 +73,7 @@ async function enhance() {
   });
 
   /* Images: resolve relative srcs, lazy-load */
-  $$('img[src]', preview).forEach((img) => {
+  $$<HTMLImageElement>('img[src]', preview).forEach((img) => {
     const src = img.getAttribute('src') || '';
     if (!/^(https?:)?\/\//i.test(src) && !src.startsWith('data:')) {
       try { img.src = new URL(src, base).href; } catch { /* keep as-is */ }
@@ -85,9 +83,9 @@ async function enhance() {
   });
 
   /* Headings: unique ids + hover anchors + table of contents */
-  const used = new Map();
+  const used = new Map<string, number>();
   $$('h1,h2,h3,h4,h5,h6', preview).forEach((h) => {
-    let id = slugify(h.textContent) || 'section';
+    let id = slugify(h.textContent ?? '') || 'section';
     const n = used.get(id) || 0;
     used.set(id, n + 1);
     if (n) id += '-' + n;
@@ -102,7 +100,7 @@ async function enhance() {
 
   /* Tables: wrap for rounded corners + horizontal scroll */
   $$('table', preview).forEach((tbl) => {
-    if (tbl.parentElement.classList.contains('table-wrap')) return;
+    if (tbl.parentElement!.classList.contains('table-wrap')) return;
     const wrap = document.createElement('div');
     wrap.className = 'table-wrap';
     tbl.before(wrap);
@@ -110,49 +108,64 @@ async function enhance() {
   });
 
   /* Code blocks: highlight + copy button; collect mermaid blocks */
-  const shells = [];
+  const shells: HTMLElement[] = [];
   $$('pre > code', preview).forEach((code) => {
     const lang = (code.className.match(/language-([\w#+-]+)/) || [])[1];
     if (lang && lang.toLowerCase() === 'mermaid') {
       const shell = document.createElement('div');
       shell.className = 'mermaid-block';
       shell.textContent = code.textContent;
-      code.parentElement.replaceWith(shell);
+      code.parentElement!.replaceWith(shell);
       shells.push(shell);
       return;
     }
-    if (lang && window.hljs && hljs.getLanguage(lang)) {
+    if (lang && hljs.getLanguage(lang)) {
       try { hljs.highlightElement(code); } catch { /* leave plain */ }
     }
     attachCopyButton(code.parentElement);
   });
 
-  /* Mermaid */
-  if (shells.length && window.mermaid) {
+  /* Mermaid — dynamically imported so it code-splits out of the main chunk and
+     is only fetched when a mermaid block actually exists. If the chunk fails
+     to load, every shell gets the existing error-note UI. */
+  if (shells.length) {
+    let mermaid: (typeof import('mermaid'))['default'] | null = null;
     try {
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: 'strict',
-        theme: state.theme === 'dark' ? 'dark' : 'default',
-        fontFamily: '"Vazirmatn", ui-sans-serif, system-ui, sans-serif',
-      });
-    } catch { /* already initialized */ }
-    for (const shell of shells) {
+      mermaid = (await import('mermaid')).default;
+    } catch (err) {
+      for (const shell of shells) failShell(shell, err);
+    }
+    if (mermaid) {
       try {
-        await mermaid.parse(shell.textContent);
-        await mermaid.run({ nodes: [shell] });
-      } catch (err) {
-        shell.classList.add('mermaid-failed');
-        const note = document.createElement('div');
-        note.className = 'error-note';
-        note.textContent = `${t('mermaidError')}: ${err.message || err}`;
-        shell.after(note);
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: state.theme === 'dark' ? 'dark' : 'default',
+          fontFamily: '"Vazirmatn", ui-sans-serif, system-ui, sans-serif',
+        });
+      } catch { /* already initialized */ }
+      for (const shell of shells) {
+        try {
+          await mermaid.parse(shell.textContent ?? '');
+          await mermaid.run({ nodes: [shell] });
+        } catch (err) {
+          failShell(shell, err);
+        }
       }
     }
   }
 }
 
-function attachCopyButton(pre) {
+/** Existing mermaid failure UI: mark the shell and add an error-note after it. */
+function failShell(shell: HTMLElement, err: unknown): void {
+  shell.classList.add('mermaid-failed');
+  const note = document.createElement('div');
+  note.className = 'error-note';
+  note.textContent = `${t('mermaidError')}: ${(err instanceof Error && err.message) || String(err)}`;
+  shell.after(note);
+}
+
+function attachCopyButton(pre: HTMLElement | null): void {
   if (!pre || pre.querySelector('.copy-btn')) return;
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -160,7 +173,7 @@ function attachCopyButton(pre) {
   btn.textContent = t('copyCode');
   btn.addEventListener('click', async () => {
     try {
-      await navigator.clipboard.writeText(pre.querySelector('code')?.textContent ?? pre.textContent);
+      await navigator.clipboard.writeText(pre.querySelector('code')?.textContent ?? pre.textContent ?? '');
       btn.textContent = t('copiedCode');
       btn.classList.add('ok');
       setTimeout(() => { btn.textContent = t('copyCode'); btn.classList.remove('ok'); }, 1400);
@@ -169,19 +182,20 @@ function attachCopyButton(pre) {
   pre.appendChild(btn);
 }
 
-export function scrollToHash() {
+export function scrollToHash(): void {
   if (!location.hash) return;
-  let el = null;
+  let el: Element | null = null;
   try {
     el = preview.querySelector(decodeURIComponent(location.hash));
   } catch {
     el = document.getElementById(location.hash.slice(1));
   }
-  if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
+  if (el) requestAnimationFrame(() => el!.scrollIntoView({ block: 'start' }));
 }
 
-/** CDN library setup + availability check — runs once from boot(), same position as in app.js. */
-export function initMarked() {
-  if (window.marked && marked.setOptions) marked.setOptions({ gfm: true, breaks: false });
-  if (!window.marked || !window.DOMPurify || !window.mermaid) toast(t('libError'), 'error');
+/** Bundled-library setup — runs once from boot(), same position as in app.js.
+    With npm dependencies the libraries cannot be missing, so the old
+    availability check / libError toast path is gone. */
+export function initMarked(): void {
+  marked.setOptions({ gfm: true, breaks: false });
 }

@@ -18,13 +18,10 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
   on the Persian doc; decode accepts full URLs too)
 - [x] **Agent C — `js/ai.js`** — DONE, browser-verified (panel opens; honest
   unavailable explainer on non-capable browsers; chunk-normalizer unit tests)
-- [ ] **Agent T1 — TypeScript + Vite migration** (after B1+C land):
-  npm + lockfile replaces CDN/SRI layer; `vite build` → `dist/`; port all
-  modules (`js/*` → `src/*.ts`, incl. share/ai) with strict tsconfig; mermaid
-  via dynamic import (code-split); CSP updated (script-src 'self'; no CDN);
-  `base: './'` for the `/markdown-viewer/` path; target es2020.
-- [ ] **Verify T1** — build + full browser regression (fa/en, themes, Mermaid,
-  share encode/decode, size cap), then commit + push.
+- [x] **Agent T1 — TypeScript + Vite migration** — DONE, browser-verified on the
+  production build (`pnpm` 11.3 pinned, strict tsconfig, 9 modules in `src/`,
+  mermaid code-split, hljs themes vendored w/ style-swap, boot.js in `public/`,
+  site docs copied to dist, 35 vitest tests green)
 - [ ] **Agent P — Playwright e2e** — config + cross-engine smoke spec
   (chromium/firefox/webkit: app boots, markdown renders, Mermaid svg, no console
   errors), unblocks the gated CI e2e job.

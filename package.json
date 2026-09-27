@@ -1,0 +1,30 @@
+{
+  "name": "markdown-viewer",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "packageManager": "pnpm@11.3.0",
+  "description": "A bilingual (English / فارسی) split-pane markdown editor & viewer with full RTL support and Mermaid diagrams.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "echo \"e2e not configured yet\" && exit 0"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.14",
+    "highlight.js": "^11.9.0",
+    "marked": "^12.0.2",
+    "mermaid": "^11.17.2"
+  },
+  "devDependencies": {
+    "eslint": "^10.11.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.1",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
+  }
+}

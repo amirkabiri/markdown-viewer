@@ -1,33 +1,44 @@
 // Module: ui — TOC + scroll spy, slide-over panel, open dialog, topbar handlers, drag & drop. Owner of bindUI/bindDrop/buildToc/updateSpy/applyTheme.
 import { $, $$, state, store, routeState, editor, preview, previewScroll, panel, scrim, openDialog, panelEls, MAX_INPUT_BYTES, toast } from './state.js';
+import type { PaneMode } from './state.js';
 import { t, setLang } from './i18n.js';
 import { renderPreview } from './markdown.js';
 import { setDoc, loadUrl, loadFile } from './documents.js';
 import { setPaneMode, applyDir } from './workspace.js';
+import hljsLightCss from '../style/hljs/github.css?raw';
+import hljsDarkCss from '../style/hljs/github-dark.css?raw';
 
-/* highlight.js stylesheets per theme, with matching SRI hashes */
+/* Vendored highlight.js themes (trust-on-commit, no SRI). Vite hashes <link>
+   CSS assets referenced from index.html, so the original swap-the-href
+   approach cannot address the dark theme in a production build — both themes
+   are instead bundled as strings and swapped via a <style> tag (see
+   applyTheme). The #hljs-theme <link> in index.html stays as the pre-JS light
+   default. */
 const HLJS_STYLES = {
-  light: { href: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css', integrity: 'sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L' },
-  dark:  { href: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css', integrity: 'sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH' },
+  light: hljsLightCss,
+  dark: hljsDarkCss,
 };
 
-export function applyTheme() {
+export function applyTheme(): void {
   document.documentElement.dataset.theme = state.theme;
-  $('meta[name="theme-color"]').content = state.theme === 'dark' ? '#0d1117' : '#0969da';
-  const link = $('#hljs-theme');
-  const style = HLJS_STYLES[state.theme] || HLJS_STYLES.light;
-  link.href = style.href;
-  link.integrity = style.integrity;
+  $<HTMLMetaElement>('meta[name="theme-color"]')!.content = state.theme === 'dark' ? '#0d1117' : '#0969da';
+  let styleEl = document.getElementById('hljs-theme-inline') as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'hljs-theme-inline';
+    document.head.appendChild(styleEl); // appended after the bundled <link> so it wins the cascade
+  }
+  styleEl.textContent = HLJS_STYLES[state.theme] || HLJS_STYLES.light;
 }
 
 /* ---------------- loading overlay ---------------- */
 
-export function showLoading() { $('#loading').hidden = false; }
-export function hideLoading() { $('#loading').hidden = true; }
+export function showLoading(): void { $('#loading')!.hidden = false; }
+export function hideLoading(): void { $('#loading')!.hidden = true; }
 
 /* ---------------- table of contents + scroll spy ---------------- */
 
-export function buildToc(headings) {
+export function buildToc(headings: HTMLElement[]): void {
   const toc = panelEls.toc;
   const section = panelEls.tocSection;
   if (!headings.length) {
@@ -42,7 +53,7 @@ export function buildToc(headings) {
     const a = document.createElement('a');
     a.className = `toc-link toc-l${Math.min(3, +h.tagName[1] - min + 1)}`;
     a.href = '#' + h.id;
-    const clone = h.cloneNode(true);
+    const clone = h.cloneNode(true) as HTMLElement;
     clone.querySelectorAll('.heading-anchor').forEach((x) => x.remove());
     a.textContent = clone.textContent;
     a.addEventListener('click', (ev) => {
@@ -54,7 +65,7 @@ export function buildToc(headings) {
   });
 }
 
-export function updateSpy() {
+export function updateSpy(): void {
   const links = $$('.toc-link', panelEls.toc);
   if (!links.length) return;
   const heads = $$('h2,h3,h4', preview);
@@ -68,23 +79,23 @@ export function updateSpy() {
 
 /* ---------------- panel / dialog / buttons ---------------- */
 
-export function openPanel() { panel.classList.add('open'); scrim.hidden = false; $('#panel-btn').setAttribute('aria-expanded', 'true'); }
-export function closePanel() { panel.classList.remove('open'); scrim.hidden = true; $('#panel-btn').setAttribute('aria-expanded', 'false'); }
+export function openPanel(): void { panel.classList.add('open'); scrim.hidden = false; $('#panel-btn')!.setAttribute('aria-expanded', 'true'); }
+export function closePanel(): void { panel.classList.remove('open'); scrim.hidden = true; $('#panel-btn')!.setAttribute('aria-expanded', 'false'); }
 
-export function openLoadDialog() {
+export function openLoadDialog(): void {
   activateTab('url');
   openDialog.showModal();
-  setTimeout(() => $('#url-input').focus(), 50);
+  setTimeout(() => $<HTMLInputElement>('#url-input')!.focus(), 50);
 }
 
-export function activateTab(name) {
+export function activateTab(name: string): void {
   $$('.tab', openDialog).forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
-  $('#panel-url').hidden = name !== 'url';
-  $('#panel-upload').hidden = name !== 'upload';
-  $('#panel-paste').hidden = name !== 'paste';
+  $('#panel-url')!.hidden = name !== 'url';
+  $('#panel-upload')!.hidden = name !== 'upload';
+  $('#panel-paste')!.hidden = name !== 'paste';
 }
 
-export function readAndLoad(file) {
+export function readAndLoad(file: File | null): void {
   if (!file) return;
   if (file.size > MAX_INPUT_BYTES) { toast(t('tooLarge'), 'error'); return; }
   file.text().then((text) => {
@@ -95,33 +106,33 @@ export function readAndLoad(file) {
   }).catch(() => toast(t('loadError'), 'error'));
 }
 
-export function bindUI() {
-  $('#panel-btn').addEventListener('click', () => (panel.classList.contains('open') ? closePanel() : openPanel()));
+export function bindUI(): void {
+  $('#panel-btn')!.addEventListener('click', () => (panel.classList.contains('open') ? closePanel() : openPanel()));
   scrim.addEventListener('click', closePanel);
 
-  $$('#pane-modes button').forEach((b) => b.addEventListener('click', () => setPaneMode(b.dataset.mode)));
+  $$('#pane-modes button').forEach((b) => b.addEventListener('click', () => setPaneMode(b.dataset.mode as PaneMode)));
 
-  $('#open-btn').addEventListener('click', openLoadDialog);
-  $('#dialog-close-btn').addEventListener('click', () => openDialog.close());
+  $('#open-btn')!.addEventListener('click', openLoadDialog);
+  $('#dialog-close-btn')!.addEventListener('click', () => openDialog.close());
 
-  $$('.tab', openDialog).forEach((b) => b.addEventListener('click', () => activateTab(b.dataset.tab)));
+  $$('.tab', openDialog).forEach((b) => b.addEventListener('click', () => activateTab(b.dataset.tab!)));
 
-  $('#url-form').addEventListener('submit', (e) => {
+  $<HTMLFormElement>('#url-form')!.addEventListener('submit', (e) => {
     e.preventDefault();
-    const v = $('#url-input').value.trim();
+    const v = $<HTMLInputElement>('#url-input')!.value.trim();
     if (!v) return;
     openDialog.close();
     loadUrl(v);
   });
 
-  $('#file-input').addEventListener('change', (e) => {
-    readAndLoad(e.target.files[0]);
-    e.target.value = '';
+  $<HTMLInputElement>('#file-input')!.addEventListener('change', (e) => {
+    readAndLoad((e.target as HTMLInputElement).files?.[0] ?? null);
+    (e.target as HTMLInputElement).value = '';
     openDialog.close();
   });
 
-  $('#paste-load-btn').addEventListener('click', () => {
-    const text = $('#paste-input').value;
+  $('#paste-load-btn')!.addEventListener('click', () => {
+    const text = $<HTMLTextAreaElement>('#paste-input')!.value;
     if (!text.trim()) { toast(t('loadError'), 'error'); return; }
     if (new TextEncoder().encode(text).length > MAX_INPUT_BYTES) { toast(t('tooLarge'), 'error'); return; }
     setDoc({ name: t('pastedDoc'), text });
@@ -131,15 +142,15 @@ export function bindUI() {
   });
 
   /* In-panel sample links load without a full page reload */
-  $$('#panel a.side-link[href*="?file="]').forEach((a) => {
+  $$<HTMLAnchorElement>('#panel a.side-link[href*="?file="]').forEach((a) => {
     a.addEventListener('click', (ev) => {
       ev.preventDefault();
       closePanel();
-      loadFile(new URL(a.href, location.href).searchParams.get('file'));
+      loadFile(new URL(a.href, location.href).searchParams.get('file')!);
     });
   });
 
-  $('#new-doc-btn').addEventListener('click', () => {
+  $('#new-doc-btn')!.addEventListener('click', () => {
     if (editor.value.trim() && !confirm(t('newDocConfirm'))) return;
     history.pushState(null, '', location.pathname);
     routeState.lastParams = null;
@@ -148,14 +159,14 @@ export function bindUI() {
     editor.focus();
   });
 
-  $('#share-btn').addEventListener('click', async () => {
+  $('#share-btn')!.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(location.href);
       toast(t('copied'), 'ok');
     } catch { toast(t('copied'), 'error'); }
   });
 
-  $('#dir-btn').addEventListener('click', () => {
+  $('#dir-btn')!.addEventListener('click', () => {
     state.dir = state.dir === 'auto' ? 'ltr' : state.dir === 'ltr' ? 'rtl' : 'auto';
     store.set('dir', state.dir);
     applyDir();
@@ -163,11 +174,11 @@ export function bindUI() {
       (state.dir === 'auto' ? 'Auto / خودکار' : state.dir === 'ltr' ? 'LTR' : 'RTL'));
   });
 
-  $('#lang-btn').addEventListener('click', () => {
+  $('#lang-btn')!.addEventListener('click', () => {
     setLang(state.lang === 'fa' ? 'en' : 'fa');
   });
 
-  $('#theme-btn').addEventListener('click', () => {
+  $('#theme-btn')!.addEventListener('click', () => {
     state.theme = state.theme === 'dark' ? 'light' : 'dark';
     store.set('theme', state.theme);
     applyTheme();
@@ -186,9 +197,9 @@ export function bindUI() {
 
 /* ---------------- drag & drop ---------------- */
 
-export function bindDrop() {
-  const overlay = $('#drop-overlay');
-  const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+export function bindDrop(): void {
+  const overlay = $('#drop-overlay')!;
+  const hasFiles = (e: DragEvent): boolean => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
   window.addEventListener('dragover', (e) => {
     if (hasFiles(e)) { e.preventDefault(); overlay.classList.add('show'); }
   });
@@ -199,6 +210,6 @@ export function bindDrop() {
     if (!hasFiles(e)) return;
     e.preventDefault();
     overlay.classList.remove('show');
-    readAndLoad(e.dataTransfer.files[0]);
+    readAndLoad(e.dataTransfer!.files[0]);
   });
 }

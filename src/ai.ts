@@ -2,6 +2,75 @@
 import { state, editor, toast } from './state.js';
 import { t, registerI18n } from './i18n.js';
 
+/* ---------------- Prompt API ambient types (minimal, Chrome built-ins not in lib.dom) ---------------- */
+
+interface AiDownloadProgressEvent {
+  loaded?: number;
+}
+
+type AiMonitor = EventTarget & {
+  addEventListener(type: 'downloadprogress', listener: (e: AiDownloadProgressEvent) => void): void;
+};
+
+interface AiLmSession {
+  prompt(input: string): Promise<string>;
+  promptStreaming(input: string): AsyncIterable<unknown>;
+  destroy(): void;
+}
+
+interface AiLanguageModel {
+  availability(): Promise<'available' | 'downloadable' | 'downloading' | 'unavailable' | null>;
+  create(options?: {
+    initialPrompts?: { role: 'system' | 'user' | 'assistant'; content: string }[];
+    monitor?(monitor: AiMonitor): void;
+  }): Promise<AiLmSession>;
+}
+
+interface AiSummarizer {
+  summarize(input: string): Promise<string>;
+  destroy(): void;
+}
+
+interface AiSummarizerStatic {
+  availability(): Promise<string>;
+  create(options: { type: string; format: string; length: string }): Promise<AiSummarizer>;
+}
+
+interface AiRewriter {
+  rewrite(input: string, options?: { context?: string }): Promise<string>;
+  destroy(): void;
+}
+
+interface AiRewriterStatic {
+  availability(): Promise<string>;
+  create(options: { tone: string; format: string; length: string; sharedContext?: string }): Promise<AiRewriter>;
+}
+
+interface AiLangPair {
+  sourceLanguage: string;
+  targetLanguage: string;
+}
+
+interface AiTranslator {
+  translate(input: string): Promise<string>;
+  destroy(): void;
+}
+
+interface AiTranslatorStatic {
+  availability(pair: AiLangPair): Promise<string>;
+  create(pair: AiLangPair): Promise<AiTranslator>;
+}
+
+/** `self` augmented with the optional, origin-trial-gated AI built-ins. */
+type AiSelf = typeof self & {
+  LanguageModel?: AiLanguageModel;
+  Summarizer?: AiSummarizerStatic;
+  Rewriter?: AiRewriterStatic;
+  Translator?: AiTranslatorStatic;
+};
+
+const selfAi = self as AiSelf;
+
 /* ---------------- i18n ---------------- */
 
 registerI18n({
@@ -37,7 +106,7 @@ registerI18n({
  * deltas. Pure: given the previous chunk and the new chunk, returns only the
  * text that should be appended.
  */
-export function normalizeStreamChunk(prev, chunk) {
+export function normalizeStreamChunk(prev: unknown, chunk: string): string {
   if (typeof prev === 'string' && prev.length > 0 &&
       typeof chunk === 'string' && chunk.startsWith(prev)) {
     return chunk.slice(prev.length);
@@ -53,7 +122,7 @@ const SYSTEM_PROMPT = `You are a Markdown assistant embedded in a Markdown edito
    limited; the editor itself allows up to 10 MB). Keeps head + tail. */
 const MAX_PROMPT_CHARS = 12000;
 
-function clip(text, max = MAX_PROMPT_CHARS) {
+function clip(text: string, max = MAX_PROMPT_CHARS): string {
   if (text.length <= max) return text;
   const half = Math.floor(max / 2);
   return text.slice(0, half) + '\n\n[…]\n\n' + text.slice(-half);
@@ -62,23 +131,25 @@ function clip(text, max = MAX_PROMPT_CHARS) {
 /* ---------------- module state ---------------- */
 
 let inited = false;
-let aiBtn = null;
-let panel = null;
-let statusEl = null;
-let messagesEl = null;
-let inputEl = null;
-let sendBtn = null;
-const chipEls = [];
+let aiBtn: HTMLElement | null = null;
+let panel: HTMLElement | null = null;
+let statusEl: HTMLElement | null = null;
+let messagesEl: HTMLElement | null = null;
+let inputEl: HTMLTextAreaElement | null = null;
+let sendBtn: HTMLButtonElement | null = null;
+const chipEls: HTMLButtonElement[] = [];
+
+type Availability = 'checking' | 'available' | 'downloadable' | 'downloading' | 'unavailable';
 
 // Availability state machine: 'checking' | 'available' | 'downloadable' | 'downloading' | 'unavailable'
-let avail = 'checking';
+let avail: Availability = 'checking';
 let dlPercent = -1; // last downloadprogress value in %, -1 = indeterminate
-let session = null; // LanguageModel session, created lazily, reused, destroyed on pagehide
+let session: AiLmSession | null = null; // LanguageModel session, created lazily, reused, destroyed on pagehide
 let busy = false;   // a request/stream is in flight
 
 /* ---------------- tiny DOM helper (createElement + textContent only) ---------------- */
 
-function el(tag, className, text) {
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (text != null) node.textContent = text;
@@ -126,7 +197,7 @@ const AI_CSS = `
 .ai-send:disabled{opacity:.5;cursor:default;filter:none}
 `;
 
-function injectStyles() {
+function injectStyles(): void {
   if (document.getElementById('ai-styles')) return;
   const style = el('style');
   style.id = 'ai-styles';
@@ -136,17 +207,17 @@ function injectStyles() {
 
 /* ---------------- availability state machine ---------------- */
 
-function setAvail(next) {
+function setAvail(next: Availability): void {
   avail = next;
   if (next === 'unavailable') destroySession();
   renderStatus();
 }
 
-async function refreshAvailability() {
+async function refreshAvailability(): Promise<void> {
   setAvail('checking');
-  if (!('LanguageModel' in self)) { setAvail('unavailable'); return; }
+  if (!selfAi.LanguageModel) { setAvail('unavailable'); return; }
   try {
-    const av = await LanguageModel.availability(); // 'available' | 'downloadable' | 'downloading' | 'unavailable' (null → unavailable)
+    const av = await selfAi.LanguageModel.availability(); // 'available' | 'downloadable' | 'downloading' | 'unavailable' (null → unavailable)
     setAvail(av === 'available' || av === 'downloadable' || av === 'downloading' ? av : 'unavailable');
   } catch (err) {
     console.warn('[ai] availability check failed', err);
@@ -154,20 +225,20 @@ async function refreshAvailability() {
   }
 }
 
-function syncControls() {
+function syncControls(): void {
   const ready = avail === 'available';
-  inputEl.disabled = !ready;
-  sendBtn.disabled = !ready || busy;
+  inputEl!.disabled = !ready;
+  sendBtn!.disabled = !ready || busy;
   for (const chip of chipEls) chip.disabled = busy;
 }
 
-function setBusy(next) {
+function setBusy(next: boolean): void {
   busy = next;
   syncControls();
 }
 
 /** Re-renders the status area from the current machine state (i18n-safe). */
-function renderStatus() {
+function renderStatus(): void {
   if (!statusEl) return;
   statusEl.textContent = '';
   statusEl.hidden = avail === 'available';
@@ -198,12 +269,12 @@ function renderStatus() {
  * Download-model button click = the user activation that LanguageModel.create()
  * needs when a download starts. Progress is wired through the create() monitor.
  */
-async function startDownload() {
-  if (!('LanguageModel' in self)) return;
+async function startDownload(): Promise<void> {
+  if (!selfAi.LanguageModel) return;
   dlPercent = -1;
   setAvail('downloading');
   try {
-    session = await LanguageModel.create({
+    session = await selfAi.LanguageModel.create({
       initialPrompts: [{ role: 'system', content: SYSTEM_PROMPT }],
       monitor(m) {
         m.addEventListener('downloadprogress', (e) => {
@@ -214,7 +285,7 @@ async function startDownload() {
       },
     });
     setAvail('available');
-    inputEl.focus();
+    inputEl!.focus();
   } catch (err) {
     console.error('[ai] model download/create failed', err);
     session = null;
@@ -224,18 +295,18 @@ async function startDownload() {
 
 /* ---------------- session lifecycle ---------------- */
 
-function destroySession() {
+function destroySession(): void {
   if (!session) return;
   try { session.destroy(); } catch { /* already destroyed */ }
   session = null;
 }
 
 /** Create the session lazily; reuse it afterwards. Only called when available. */
-async function ensureSession() {
+async function ensureSession(): Promise<AiLmSession | null> {
   if (session) return session;
-  if (!('LanguageModel' in self)) return null;
+  if (!selfAi.LanguageModel) return null;
   try {
-    session = await LanguageModel.create({
+    session = await selfAi.LanguageModel.create({
       initialPrompts: [{ role: 'system', content: SYSTEM_PROMPT }],
     });
     return session;
@@ -247,8 +318,8 @@ async function ensureSession() {
 }
 
 /** Session gate for quick actions; points the user at the download button if needed. */
-async function promptReady() {
-  if (!('LanguageModel' in self)) { toast(t('aiUnavailableExplainer'), 'error'); return null; }
+async function promptReady(): Promise<AiLmSession | null> {
+  if (!selfAi.LanguageModel) { toast(t('aiUnavailableExplainer'), 'error'); return null; }
   if (avail === 'checking') await refreshAvailability();
   if (avail === 'available') {
     const ses = await ensureSession();
@@ -264,10 +335,10 @@ async function promptReady() {
 
 /* ---------------- messages area ---------------- */
 
-function scrollMessages() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+function scrollMessages(): void { messagesEl!.scrollTop = messagesEl!.scrollHeight; }
 
-function addUserMsg(text) {
-  messagesEl.appendChild(el('div', 'ai-msg ai-msg-user', text));
+function addUserMsg(text: string): void {
+  messagesEl!.appendChild(el('div', 'ai-msg ai-msg-user', text));
   scrollMessages();
 }
 
@@ -291,7 +362,7 @@ function addAssistantMsg() {
 
   foot.append(insertBtn, copyBtn);
   wrap.append(textEl, foot);
-  messagesEl.appendChild(wrap);
+  messagesEl!.appendChild(wrap);
   scrollMessages();
 
   let full = '';
@@ -314,14 +385,16 @@ function addAssistantMsg() {
 
   return {
     wrap,
-    set(text) { full = text; textEl.textContent = text; scrollMessages(); },
-    append(piece) { full += piece; textEl.textContent = full; scrollMessages(); },
+    set(text: string) { full = text; textEl.textContent = text; scrollMessages(); },
+    append(piece: string) { full += piece; textEl.textContent = full; scrollMessages(); },
     get text() { return full; },
   };
 }
 
+type AssistantMsg = ReturnType<typeof addAssistantMsg>;
+
 /** Wraps a task with a "Working…" assistant bubble; removes the bubble when empty. */
-async function withAssistantMessage(run) {
+async function withAssistantMessage(run: (msg: AssistantMsg) => Promise<unknown>): Promise<void> {
   const msg = addAssistantMsg();
   msg.set(t('aiWorking'));
   setBusy(true);
@@ -334,12 +407,12 @@ async function withAssistantMessage(run) {
   } finally {
     setBusy(false);
   }
-  if (!out) wrap.remove();
+  if (!out) msg.wrap.remove(); // remove the "Working…" bubble when the task produced nothing
 }
 
 /* ---------------- prompting ---------------- */
 
-async function streamAnswer(ses, prompt, msg) {
+async function streamAnswer(ses: AiLmSession, prompt: string, msg: AssistantMsg): Promise<string> {
   let full = '';
   let prev = '';
   let first = true;
@@ -364,27 +437,27 @@ async function streamAnswer(ses, prompt, msg) {
   return full;
 }
 
-async function send() {
-  const question = inputEl.value.trim();
+async function send(): Promise<void> {
+  const question = inputEl!.value.trim();
   if (!question || busy || avail !== 'available') return;
   const ses = await promptReady();
   if (!ses) return;
-  inputEl.value = '';
+  inputEl!.value = '';
   addUserMsg(question);
   await withAssistantMessage((msg) => streamAnswer(ses, question, msg));
 }
 
 /* ---------------- quick actions ---------------- */
 
-async function quickSummarize() {
+async function quickSummarize(): Promise<void> {
   addUserMsg(t('aiSummarize'));
   await withAssistantMessage(async () => {
     const doc = clip(editor.value);
-    if ('Summarizer' in self) {
+    if (selfAi.Summarizer) {
       try {
-        const av = await Summarizer.availability();
+        const av = await selfAi.Summarizer.availability();
         if (av === 'available' || av === 'downloadable') {
-          const summarizer = await Summarizer.create({ type: 'key-points', format: 'markdown', length: 'short' });
+          const summarizer = await selfAi.Summarizer.create({ type: 'key-points', format: 'markdown', length: 'short' });
           try {
             return String(await summarizer.summarize(doc) || '');
           } finally {
@@ -401,17 +474,17 @@ async function quickSummarize() {
   });
 }
 
-async function quickRewrite() {
+async function quickRewrite(): Promise<void> {
   const selection = editor.value.slice(editor.selectionStart, editor.selectionEnd);
   if (!selection.trim()) { toast(t('aiNoSelection'), 'error'); return; }
   addUserMsg(t('aiRewrite'));
   await withAssistantMessage(async () => {
     const text = clip(selection);
-    if ('Rewriter' in self) { // origin-trial-gated — best effort, Prompt fallback is mandatory
+    if (selfAi.Rewriter) { // origin-trial-gated — best effort, Prompt fallback is mandatory
       try {
-        const av = await Rewriter.availability();
+        const av = await selfAi.Rewriter.availability();
         if (av !== 'unavailable') {
-          const rewriter = await Rewriter.create({ tone: 'as-is', format: 'as-is', length: 'as-is', sharedContext: 'Markdown editor' });
+          const rewriter = await selfAi.Rewriter.create({ tone: 'as-is', format: 'as-is', length: 'as-is', sharedContext: 'Markdown editor' });
           try {
             return String(await rewriter.rewrite(text, { context: 'Keep the Markdown syntax intact.' }) || '');
           } finally {
@@ -428,21 +501,21 @@ async function quickRewrite() {
   });
 }
 
-async function quickTranslate() {
+async function quickTranslate(): Promise<void> {
   const selection = editor.value.slice(editor.selectionStart, editor.selectionEnd);
   if (!selection.trim()) { toast(t('aiNoSelection'), 'error'); return; }
   // Pair follows the UI language. NOTE: fa pairs are not in the Translator table —
   // availability() honestly reports 'unavailable'; never declare languages: ['fa'].
-  const pair = state.lang === 'fa'
+  const pair: AiLangPair = state.lang === 'fa'
     ? { sourceLanguage: 'fa', targetLanguage: 'en' }
     : { sourceLanguage: 'en', targetLanguage: 'fa' };
-  if (!('Translator' in self)) { toast(t('aiTranslateUnavailable'), 'error'); return; }
+  if (!selfAi.Translator) { toast(t('aiTranslateUnavailable'), 'error'); return; }
   let av = 'unavailable';
-  try { av = await Translator.availability(pair); } catch { /* stays unavailable */ }
+  try { av = await selfAi.Translator.availability(pair); } catch { /* stays unavailable */ }
   if (av !== 'available' && av !== 'downloadable') { toast(t('aiTranslateUnavailable'), 'error'); return; }
   addUserMsg(t('aiTranslate'));
   await withAssistantMessage(async () => {
-    const translator = await Translator.create(pair);
+    const translator = await selfAi.Translator!.create(pair);
     try {
       return String(await translator.translate(clip(selection)) || '');
     } finally {
@@ -453,24 +526,24 @@ async function quickTranslate() {
 
 /* ---------------- panel ---------------- */
 
-function isOpen() { return !!panel && !panel.hidden; }
+function isOpen(): boolean { return !!panel && !panel.hidden; }
 
-function openAi() {
-  panel.hidden = false;
-  aiBtn.setAttribute('aria-expanded', 'true');
+function openAi(): void {
+  panel!.hidden = false;
+  aiBtn!.setAttribute('aria-expanded', 'true');
   if (avail === 'checking') refreshAvailability();
   else renderStatus(); // re-render in case the UI language changed while closed
-  if (avail === 'available') inputEl.focus();
+  if (avail === 'available') inputEl!.focus();
 }
 
-function closeAi() {
-  panel.hidden = true;
-  aiBtn.setAttribute('aria-expanded', 'false');
+function closeAi(): void {
+  panel!.hidden = true;
+  aiBtn!.setAttribute('aria-expanded', 'false');
 }
 
-function toggleAi() { isOpen() ? closeAi() : openAi(); }
+function toggleAi(): void { if (isOpen()) closeAi(); else openAi(); }
 
-function buildPanel() {
+function buildPanel(): void {
   panel = el('aside', 'ai-panel');
   panel.id = 'ai-panel';
   panel.hidden = true;
@@ -494,7 +567,7 @@ function buildPanel() {
   messagesEl = el('div', 'ai-messages');
 
   const actions = el('div', 'ai-actions');
-  [['aiSummarize', quickSummarize], ['aiRewrite', quickRewrite], ['aiTranslate', quickTranslate]]
+  ([['aiSummarize', quickSummarize], ['aiRewrite', quickRewrite], ['aiTranslate', quickTranslate]] as const)
     .forEach(([key, fn]) => {
       const chip = el('button', 'ai-chip', t(key));
       chip.type = 'button';
@@ -534,7 +607,7 @@ function buildPanel() {
  * Idempotent. Builds the panel DOM, injects styles, binds #ai-btn.
  * No-ops with a console.warn when #ai-btn is absent (wiring is added elsewhere).
  */
-export function initAi() {
+export function initAi(): void {
   if (inited) return;
   const btn = document.getElementById('ai-btn');
   if (!btn) {

@@ -1,5 +1,5 @@
 // Module: documents — URL/file loading, recents. Owner of loadUrl/setDoc/recent logic.
-import { $, state, store, routeState, editor, previewScroll, panelEls, MAX_INPUT_BYTES, updateCounts } from './state.js';
+import { $, state, store, routeState, editor, previewScroll, panelEls, MAX_INPUT_BYTES, updateCounts, toast } from './state.js';
 import { t, registerI18n } from './i18n.js';
 import { renderPreview, scrollToHash } from './markdown.js';
 import { closePanel, showLoading, hideLoading } from './ui.js';
@@ -12,7 +12,12 @@ registerI18n({
   unnamedDoc: { en: 'Untitled', fa: 'بی‌نام' },
 });
 
-export async function fetchText(url) {
+export interface RecentItem {
+  name: string;
+  url: string;
+}
+
+export async function fetchText(url: string): Promise<string> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 20000);
   try {
@@ -25,7 +30,7 @@ export async function fetchText(url) {
 }
 
 /** Convert github.com blob/raw links to raw.githubusercontent.com. */
-export function normalizeGitHubUrl(u) {
+export function normalizeGitHubUrl(u: string): string {
   try {
     const url = new URL(u, location.href);
     if (/(^|\.)github\.com$/i.test(url.hostname)) {
@@ -36,16 +41,16 @@ export function normalizeGitHubUrl(u) {
   } catch { return u; }
 }
 
-export function prettyName(u, base = location.href) {
+export function prettyName(u: string, base = location.href): string {
   try {
     const last = decodeURIComponent(new URL(u, base).pathname.split('/').filter(Boolean).pop() || '');
     return last.replace(/\.(md|markdown|mdx|txt)$/i, '') || 'document';
   } catch { return 'document'; }
 }
 
-export function setDoc({ name, text, url = null, baseUrl = null }) {
+export function setDoc({ name, text, url = null, baseUrl = null }: { name: string; text: string; url?: string | null; baseUrl?: string | null }): Promise<void> {
   state.doc = { name, text, url, baseUrl: baseUrl || url || location.href };
-  $('#doc-name').textContent = name;
+  $('#doc-name')!.textContent = name;
   editor.value = text;
   updateCounts();
   previewScroll.scrollTop = 0;
@@ -53,9 +58,14 @@ export function setDoc({ name, text, url = null, baseUrl = null }) {
   return renderPreview();
 }
 
-export function paramsString() { return location.search.replace(/^\?/, ''); }
+export function paramsString(): string { return location.search.replace(/^\?/, ''); }
 
-export async function loadUrl(rawUrl, { push = true, fileParam = null } = {}) {
+export interface LoadOptions {
+  push?: boolean;
+  fileParam?: string | null;
+}
+
+export async function loadUrl(rawUrl: string, { push = true, fileParam = null }: LoadOptions = {}): Promise<boolean> {
   const target = normalizeGitHubUrl(rawUrl.trim());
   showLoading();
   let ok = false;
@@ -65,7 +75,7 @@ export async function loadUrl(rawUrl, { push = true, fileParam = null } = {}) {
     await setDoc({ name: fileParam ? prettyName(fileParam) : prettyName(target), text, url: target, baseUrl: target });
     ok = true;
   } catch (err) {
-    toast(`${t('loadError')}: ${err.message || err}`, 'error');
+    toast(`${t('loadError')}: ${(err instanceof Error && err.message) || String(err)}`, 'error');
   } finally {
     hideLoading();
   }
@@ -80,24 +90,25 @@ export async function loadUrl(rawUrl, { push = true, fileParam = null } = {}) {
   return ok;
 }
 
-export const loadFile = (path, opts = {}) => loadUrl(new URL(path, location.href).href, { ...opts, fileParam: path });
+export const loadFile = (path: string, opts: LoadOptions = {}): Promise<boolean> =>
+  loadUrl(new URL(path, location.href).href, { ...opts, fileParam: path });
 
-export function loadWelcome() {
-  const md = $('#welcome-md').textContent;
+export function loadWelcome(): void {
+  const md = $('#welcome-md')!.textContent ?? '';
   setDoc({ name: t('welcome'), text: md, baseUrl: location.href });
 }
 
 /* ---------------- recent documents ---------------- */
 
-export function addRecent(item) {
-  let list = store.get('recent', []);
+export function addRecent(item: RecentItem): void {
+  let list = store.get<RecentItem[]>('recent', []);
   list = [item, ...list.filter((x) => x.url !== item.url)].slice(0, 8);
   store.set('recent', list);
   renderRecent();
 }
 
-export function renderRecent() {
-  const list = store.get('recent', []);
+export function renderRecent(): void {
+  const list = store.get<RecentItem[]>('recent', []);
   panelEls.recentSection.hidden = !list.length;
   const holder = panelEls.recentList;
   holder.innerHTML = '';

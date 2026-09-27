@@ -8,7 +8,7 @@ import { applyTheme, bindUI, bindDrop } from './ui.js';
 
 /* ---------------- routing / boot ---------------- */
 
-function route() {
+function route(): void {
   const p = paramsString();
   if (p === routeState.lastParams) return;
   const params = new URLSearchParams(p);
@@ -19,7 +19,7 @@ function route() {
   else loadFile('README.md', { push: false });
 }
 
-async function boot() {
+async function boot(): Promise<void> {
   applyLang();
   applyTheme();
   applySplit();

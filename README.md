@@ -47,38 +47,38 @@ Persian and it lays out RTL; start with English and it stays LTR. The
 
 ## Run locally
 
-Any static server works:
+Requires [Node.js](https://nodejs.org) 20+ and [pnpm](https://pnpm.io):
 
 ```bash
 git clone https://github.com/amirkabiri/markdown-viewer.git
 cd markdown-viewer
-python3 -m http.server 8000
-# open http://localhost:8000
+pnpm install
+pnpm dev        # dev server with HMR
+pnpm build      # production build into dist/
+pnpm preview    # serve the production build locally
 ```
-
-(Directly opening `index.html` via `file://` also mostly works — the viewer falls back to a built-in welcome document when local files can't be fetched.)
 
 ## Deploy (GitHub Pages)
 
-This repo is deployed from the `main` branch root:
-
-1. Settings → Pages → Source: **Deploy from a branch**
-2. Branch: `main` / path: `/ (root)`
-3. Open `https://amirkabiri.github.io/markdown-viewer/`
-
-No build pipeline needed — the site is plain HTML/CSS/JS.
+GitHub Actions builds and deploys on every push to `main`; the Pages source must be set to **GitHub Actions** (Settings → Pages → Source: GitHub Actions). One-time setup, then open [https://amirkabiri.github.io/markdown-viewer/](https://amirkabiri.github.io/markdown-viewer/).
 
 ## Tech stack
 
 | Piece | Choice |
 | --- | --- |
+| Language | TypeScript (strict) |
+| Bundler / dev server | [Vite](https://vite.dev) |
 | Markdown parsing | [marked](https://github.com/markedjs/marked) |
 | Sanitizing | [DOMPurify](https://github.com/cure53/DOMPurify) |
 | Diagrams | [Mermaid](https://mermaid.js.org) |
 | Code highlighting | [highlight.js](https://highlightjs.org) |
 | Persian font | [Vazirmatn](https://github.com/rastikerdar/vazirmatn) |
+| Unit tests | [Vitest](https://vitest.dev) |
+| Linting | [ESLint](https://eslint.org) + typescript-eslint |
+| E2E tests | Playwright (planned) |
+| Package manager | [pnpm](https://pnpm.io) |
 
-All libraries load from CDNs (jsDelivr / cdnjs) — there is zero build step.
+The app is CDN-free: marked, DOMPurify, highlight.js and Mermaid are bundled by Vite from lockfile-pinned npm dependencies (Mermaid is code-split and only fetched when a diagram is rendered). Only the Vazirmatn font CSS still loads from jsDelivr.
 
 ## فارسی / دربارهٔ پروژه
 

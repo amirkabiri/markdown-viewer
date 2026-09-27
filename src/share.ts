@@ -17,6 +17,15 @@ export const SHARE_WARN_CHARS = 30000;
 /** Share URLs longer than this are refused outright. */
 export const SHARE_MAX_CHARS = 300000;
 
+export type ShareEncodeResult =
+  | { ok: true; url: string; chars: number; compressed: boolean; warn: boolean }
+  | { ok: false; reason: 'too-large'; chars: number };
+
+export interface ShareDecodeResult {
+  text: string;
+  compressed: boolean;
+}
+
 /* ---------------- base64url ---------------- */
 
 /* Binary strings are built in ~32K-char chunks — one Function.apply over a
@@ -24,16 +33,16 @@ export const SHARE_MAX_CHARS = 300000;
 const B64_CHUNK = 0x8000;
 
 /** bytes → base64url (URL-safe alphabet, padding stripped). */
-function bytesToBase64Url(bytes) {
+function bytesToBase64Url(bytes: Uint8Array<ArrayBuffer>): string {
   let bin = '';
   for (let i = 0; i < bytes.length; i += B64_CHUNK) {
-    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + B64_CHUNK));
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + B64_CHUNK) as unknown as number[]);
   }
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 /** base64url → bytes; tolerates stripped padding, throws on invalid input. */
-function base64UrlToBytes(s) {
+function base64UrlToBytes(s: string): Uint8Array<ArrayBuffer> {
   let b64 = s.replace(/-/g, '+').replace(/_/g, '/');
   if (b64.length % 4) b64 += '='.repeat(4 - (b64.length % 4));
   const bin = atob(b64);
@@ -47,7 +56,7 @@ function base64UrlToBytes(s) {
 /* Push bytes through a web transform stream (deflate/inflate) and collect the
    output. Response.arrayBuffer() rejects when the stream errors, which callers
    turn into a graceful fallback (encode) or null (decode). */
-async function streamBytes(stream, bytes) {
+async function streamBytes(stream: CompressionStream | DecompressionStream, bytes: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
   const res = new Response(new Blob([bytes]).stream().pipeThrough(stream));
   return new Uint8Array(await res.arrayBuffer());
 }
@@ -59,13 +68,12 @@ async function streamBytes(stream, bytes) {
  * fragment (`#d=…`) so it is never sent to any server. Bytes are UTF-8
  * (TextEncoder), deflate-raw compressed when CompressionStream exists
  * (payload prefix `D.`, otherwise raw with `R.`), then base64url.
- * @param {string} text document text
- * @returns {Promise<{ok: true, url: string, chars: number, compressed: boolean, warn: boolean}
- *                   |{ok: false, reason: 'too-large', chars: number}>}
+ * @param text document text
+ * @returns {ok: true, url, chars, compressed, warn} or {ok: false, reason: 'too-large', chars}
  */
-export async function shareEncode(text) {
+export async function shareEncode(text: string): Promise<ShareEncodeResult> {
   const bytes = new TextEncoder().encode(text);
-  let payloadBytes = bytes;
+  let payloadBytes: Uint8Array<ArrayBuffer> = bytes;
   let compressed = false;
   if (typeof CompressionStream !== 'undefined') {
     try {
@@ -87,10 +95,10 @@ export async function shareEncode(text) {
  * Decode a share payload produced by shareEncode. Accepts a full fragment
  * ('#d=D.abcd'), bare ('d=D.abcd') or raw payload ('D.abcd'); both prefixes
  * are supported regardless of CompressionStream availability.
- * @param {string} input fragment, bare `d=` form, or raw payload
- * @returns {Promise<{text: string, compressed: boolean}|null>} null for malformed/unknown input; never throws
+ * @param input fragment, bare `d=` form, or raw payload
+ * @returns {text, compressed} or null for malformed/unknown input; never throws
  */
-export async function shareDecode(input) {
+export async function shareDecode(input: unknown): Promise<ShareDecodeResult | null> {
   try {
     if (typeof input !== 'string') return null;
     let payload = input.trim();
@@ -101,7 +109,7 @@ export async function shareDecode(input) {
     const prefix = payload.slice(0, 2);
     const body = payload.slice(2);
     if ((prefix !== 'D.' && prefix !== 'R.') || (!body && prefix !== 'R.')) return null;
-    const opts = { fatal: true, ignoreBOM: true }; // reject corrupt data, keep a leading BOM
+    const opts: TextDecoderOptions = { fatal: true, ignoreBOM: true }; // reject corrupt data, keep a leading BOM
     if (prefix === 'D.') {
       if (typeof DecompressionStream === 'undefined') return null;
       const text = new TextDecoder('utf-8', opts)
