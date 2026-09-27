@@ -67,13 +67,18 @@ never auto-download), (3) tool calls the agent made must be visible in chat.
   allow for-of/await-in-loop in ai streaming code; drop
   `@stylistic/operator-linebreak`; exempt test fakes from
   `max-classes-per-file`; allow console.warn/error in ai modules.
-- [~] **Agent R4 — shell UI** — editor/preview split with divider, pane modes,
-  scroll sync, theme/lang/direction, per-paragraph direction, TOC/scroll-spy,
-  mermaid rendering, documents (open dialog, recents, drag-drop), one-click
-  share; full RTL mirroring; owns eslint.config.js (lint deltas) + e2e.
-  Frozen contract: exports `EditorApi` (stable object: getText/getSelection/
-  hasSelection/applyEdit(mode,text,pinnedRange?)) from
-  `src/features/editor/api.ts` + `I18nProvider`/`useT` from `src/app/i18n.tsx`.
+- [x] **Agent R4 — shell UI** — DONE, verified by the lead at wave HEAD:
+  all five gates green (typecheck, lint 0 errors, 333 tests, build,
+  18 e2e runs × 3 engines). Full parity: theme (pre-paint contract intact),
+  EN⇄FA with RTL mirroring (RAC I18nProvider), editor + frozen `EditorApi`
+  (undo-preserving applyEdit, localized replace-document confirm, pinned
+  ranges clamped), preview (debounce, TOC + scroll-spy, mermaid re-theming,
+  copy buttons, bidirectional scroll sync), documents (boot precedence
+  `?url=`→`?file=`→`#d=`→welcome; share hash never rewritten), one-click
+  share with capacity guardrails, pane modes with persisted split fraction.
+  Deliberate deviations: toasts queue instead of replacing; document switch
+  renders immediately (no debounce). AI panel integration point prepared in
+  Shell (providers ready; topbar button intentionally absent for R8).
 - [x] **Agent R5 — AI parity + UX requirements** — DONE, scope-verified by
   the lead (107 tests green in `src/features/ai` + `src/lib/ai`). Mounted at
   integration as `<AiPanel editor={editorApi} t={t} lang={lang}/>` (frozen
