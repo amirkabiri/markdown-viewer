@@ -30,16 +30,14 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
 ### Milestone: collaborative AI writing (after migration)
 
 - [~] Parallel batch on the TS codebase — file-disjoint ownership:
-  - [ ] **Agent C2 — `src/ai/` providers + settings** — `ChatProvider`
-    interface; `BuiltInProvider` (Prompt API), `OpenAIProvider`
-    (`{base}/chat/completions`, Bearer, SSE), `AnthropicProvider`
-    (`{base}/v1/messages`, `x-api-key` + `anthropic-version` +
-    `anthropic-dangerous-direct-browser-access`, SSE deltas); settings dialog
-    (provider / baseUrl / model / token — token stored ONLY in visitor's
-    localStorage with visible warning); vitest tests for SSE parsers +
-    message mapping with mocked fetch.
-  - [ ] **Agent B2′ — integration in TS** — share dialog + `#d=` boot routing,
-    `#ai-btn` topbar button, panel wiring, `main.ts` hookup of `initAi()`/share.
+  - [x] **Agent C2 — `src/ai/` providers + settings** — DONE: `ChatProvider`
+    over built-in / OpenAI-compatible / Anthropic-compatible (SSE parsers,
+    token redaction, CORS header), settings persisted in `mv:ai`, 20 new
+    vitest tests (55 total green)
+  - [x] **Agent B2′ — integration in TS** — DONE, browser-verified: share
+    dialog (content/source links, capacity toasts), `#d=` boot routing
+    (query params take precedence, hash survives refresh), `#ai-btn` +
+    `initAi()` wiring; vitest scoped to unit tests
 - [ ] **Final acceptance** — e2e: share roundtrip (Persian + Mermaid → open link
   → identical render); AI panel with built-in provider where available +
   external provider against a mocked Anthropic/OpenAI endpoint; regression
