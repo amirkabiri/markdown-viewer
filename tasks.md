@@ -47,37 +47,42 @@ requirements: (1) visible loading feedback while the first message warms the
 LLM, (2) explicit user consent before downloading the built-in model (~4 GB,
 never auto-download), (3) tool calls the agent made must be visible in chat.
 
-- [ ] **Agent R1 — toolchain scaffold** — React 19 + Vite + strict TS;
-  Airbnb-based ESLint flat config (+ react-hooks, jsx-a11y); vitest + React
-  Testing Library + jsdom; `STYLEGUIDE.md` (our conventions on top of
-  Airbnb) + `TESTING.md` (Google-inspired: pyramid/sizes, behavior-driven,
-  AAA, fakes over mocks, deterministic, by-role queries); legacy vanilla
-  sources moved to `legacy/` (excluded from gates, porting reference only);
-  React entry with parity: CSP meta, `base: './'`, pre-paint theme/lang
-  script, `?file=`/`?url=`/`#d=` routing contract; gates green (same script
-  names, CI unchanged)
-- [ ] **Agent R2 — UI kit research** — evaluate Radix UI primitives, React
-  Aria Components, Base UI, Ark UI, Headless UI against: WAI-ARIA quality,
-  focus/keyboard management, RTL support, headless styling freedom (bespoke
-  minimal design must survive), bundle size, React 19 compat, adoption.
-  Deliverable: `docs/uikit-research.md` with a decision + component mapping.
-  No product code.
-- [ ] **Agent R3 — domain ports** (after R1) — share codec, chunk
-  normalizer, agent loop, providers, settings, markdown render (pure
-  compute, sanitized HTML out), documents routing → typed `lib/` +
-  framework-agnostic hooks; unit tests per TESTING.md (existing 96 tests
-  must survive ported, plus new coverage)
-- [ ] **Agent R4 — shell UI** (after R3) — editor/preview split with divider,
-  theme/lang/direction, per-paragraph direction, TOC/scroll-spy, documents
-  (open dialog, recents, drag-drop), one-click share; full RTL mirroring;
-  component tests by role
-- [ ] **Agent R5 — AI parity + UX requirements** (after R2+R3) — panel on
-  the chosen kit; provider settings; agent loop with visible **tool-call
-  activity per message** (tool name + mode + running/ok/refused status,
-  not a transient note); **first-send loading states** (model warming →
-  spinner + status, never a dead silence); **builtin download consent**
-  (availability `downloadable` → confirm dialog before any download, with
-  progress once consented)
+- [x] **Agent R1 — toolchain scaffold** — DONE, verified by the lead: React 19
+  + Vite + strict TS; Airbnb via `eslint-config-airbnb-extended` (flat-native,
+  ESLint pinned ^9); vitest node+jsdom projects; RTL component test + 3-engine
+  e2e baseline; `STYLEGUIDE.md` + `TESTING.md`; vanilla app frozen in
+  `legacy/` (gates-excluded); CSP: `script-src 'self'` kept, narrow
+  `style-src-attr` added for React/mermaid (documented in-file). Gates green
+  on pushed HEAD; shell boots clean in browser.
+- [x] **Agent R2 — UI kit research** — DONE (`docs/uikit-research.md`):
+  **React Aria Components** `^1.21.1` — wins a11y AND RTL outright (derives
+  direction from locale/`<html lang>`; Radix/Base UI need a manual
+  DirectionProvider); unstyled; Radix = fallback, Base UI = watchlist.
+  Bundle budget check + consequences section for consuming agents.
+- [x] **Agent R3 — domain ports** — DONE, verified: `src/lib/` (store, share,
+  documents, ai/{chunk,agent,settings,edits,providers}, pure markdown
+  pipeline with mermaid hook point) + `src/i18n/` (pure `t(lang,key)`);
+  169 tests green (96 ported + 70 added + 3 App). DOM-coupled halves stay in
+  `legacy/` for UI agents. Lead lint-delta decisions (applied by R4):
+  allow for-of/await-in-loop in ai streaming code; drop
+  `@stylistic/operator-linebreak`; exempt test fakes from
+  `max-classes-per-file`; allow console.warn/error in ai modules.
+- [~] **Agent R4 — shell UI** — editor/preview split with divider, pane modes,
+  scroll sync, theme/lang/direction, per-paragraph direction, TOC/scroll-spy,
+  mermaid rendering, documents (open dialog, recents, drag-drop), one-click
+  share; full RTL mirroring; owns eslint.config.js (lint deltas) + e2e.
+  Frozen contract: exports `EditorApi` (stable object: getText/getSelection/
+  hasSelection/applyEdit(mode,text,pinnedRange?)) from
+  `src/features/editor/api.ts` + `I18nProvider`/`useT` from `src/app/i18n.tsx`.
+- [~] **Agent R5 — AI parity + UX requirements** — `<AiPanel/>` feature
+  (self-contained; props `editor: EditorApi, t, lang`; mounted at
+  integration): provider settings, builtin availability state machine,
+  **download consent AlertDialog** (never auto-download; explicit consent →
+  progress), **first-send loading states** (model warming/connecting →
+  spinner + status, never silent), **visible per-message tool-call activity**
+  (tool + mode + running/ok/refused; minimal backwards-compatible agent-event
+  extension in `src/lib/ai/agent.ts` allowed — args on tool events + tests).
+  Component tests with house fakes; no e2e, no config edits.
 - [ ] **Agent R6 — a11y + shortcuts pass** (after R4+R5) — complete keyboard
   map (existing: Ctrl/⌘+O, Esc; plus documented bindings for panel, pane
   modes, direction, share), roving focus + focus traps on overlays, aria
