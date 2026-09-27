@@ -29,11 +29,13 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
 
 ### Milestone: AI direct document editing (current)
 
-- [~] **Agent C3 — direct-edit access for the assistant** (`src/ai/**`):
+- [~] **Agent C3 — direct-edit access + selection-aware chat** (`src/ai/**`):
   direct-edit toggle (AI writes into the textarea as it streams), pure
   `computeEdit` helper + unit tests, per-response buttons (insert / append /
   replace selection / replace document with confirm), native-undo-preserving
-  edits via execCommand fallback chain.
+  edits via execCommand fallback chain, and **selection-aware chat**: select a
+  section, type an instruction, the agent streams the edited section back into
+  the same range (pure `buildSelectionMessages` prompt builder + tests).
 - [ ] **Verify C3** — typecheck/lint/tests/build + browser pass (stream into
   textarea in FA, replace selection, undo behavior), commit + push.
 
