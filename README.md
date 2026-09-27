@@ -11,9 +11,10 @@ Collaborative Markdown editing where humans and AI write together — on-device 
 ## Why Qalam
 
 Writing is collaborative — and Qalam treats the AI as a co-author with real write
-access to the document, not a chatbot bolted to the side. The assistant can stream
-edits directly into the text as it generates, and when you select a section and
-type an instruction it rewrites exactly that range. It runs either fully on-device
+access to the document, not a chatbot bolted to the side. The assistant edits the
+document itself through tool calls as it works — chat replies stream, but document
+edits are tool-executed, so your native undo keeps working — and when you select a
+section and type an instruction it rewrites exactly that range. It runs either fully on-device
 (Gemini Nano via the browser's Prompt API — private, free, offline-capable) or
 against your own OpenAI-/Anthropic-compatible service with your token; tokens
 never leave your browser except to the endpoint you configured. There is no
@@ -32,9 +33,8 @@ backend and no telemetry — the whole app is static files on GitHub Pages.
 ### AI co-author
 
 - **Three providers** — built-in on-device Gemini Nano (Prompt API), or your own OpenAI-compatible / Anthropic-compatible endpoint
-- **Direct-edit streaming** — with the direct-edit toggle on, the assistant writes into the editor as it streams, and every edit preserves your native undo history
-- **Selection-aware chat** — select a section, type an instruction, and the rewrite streams back into exactly that range
-- **Per-response actions** — insert at cursor, append, replace selection, or replace the whole document (whole-document replacement asks for confirmation)
+- **Tool-based editing** — the assistant works as an agent: it reads the document and edits it through tool calls; with the direct-edit toggle off it is read-only and suggests text in chat, with it on every edit lands in the editor and preserves your native undo history
+- **Selection-aware chat** — select a section, type an instruction, and the agent replaces exactly that range via `edit_document`
 - **Text-only rendering** — panel messages are plain text, and anything inserted into the document goes through the same sanitized preview pipeline as your typing
 
 ### Persian & RTL
@@ -55,7 +55,7 @@ backend and no telemetry — the whole app is static files on GitHub Pages.
 ### Engineering
 
 - **Strict TypeScript** on Vite; ESLint flat config; typecheck, lint, unit tests and build gate every push in CI
-- **55 Vitest unit tests** (share codec, stream chunking, provider parsers, settings repair) and **12 Playwright e2e runs** — 4 specs across Chromium, Firefox and WebKit — against the production build
+- **96 Vitest unit tests** (share codec, stream chunking, provider parsers, settings repair, agent loop) and **12 Playwright e2e runs** — 4 specs across Chromium, Firefox and WebKit — against the production build
 - **Content-Security-Policy** with `script-src 'self'` — no third-party scripts, ever
 - **No CDN code at runtime** — marked, DOMPurify, highlight.js and Mermaid are lockfile-pinned npm dependencies bundled by Vite (Mermaid is code-split and fetched only when a diagram renders); the only external fetch is the Vazirmatn font CSS
 
@@ -79,13 +79,16 @@ browser and the app makes zero network calls for it.
 ## Writing with the AI
 
 1. Open the assistant panel and pick a provider (see [AI providers](#ai-providers)).
-2. **Direct edit** — with the direct-edit toggle on, chat responses stream straight
-   into the document. Every edit preserves native undo (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd>).
+2. **Direct edit** — this toggle is the agent's write permission. With it off the
+   agent is read-only and suggests text in chat; with it on, its edits land in the
+   document and preserve native undo (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd>).
 3. **Selection-aware editing** — select text in the editor, type an instruction
    ("make this formal", "turn this into a table"), and the assistant rewrites
    exactly that selection.
-4. **Per-response actions** — every response offers Insert at cursor / Append /
-   Replace selection / Replace document (with confirmation for the whole document).
+4. **Agent tools** — the agent can read the document and edit it itself: insert at
+   cursor, replace selection, append, or replace the whole document (whole-document
+   replacement asks for confirmation). With direct editing off it proposes the text
+   in chat instead.
 
 **Persian note:** Gemini Nano's certified generation languages are English,
 Japanese, Spanish, German and French — Persian is not one of them, so on-device
@@ -153,7 +156,8 @@ src/
   share.ts       # self-contained #d= share links (base64url + deflate)
   ui.ts          # TOC + scroll spy, slide-over panel, dialogs, topbar, drag & drop
   ai.ts          # shim re-exporting src/ai/ (frozen import paths)
-  ai/            # assistant panel + provider layer (panel UI, quick actions, routing)
+  ai/            # assistant panel + provider layer (panel UI, agent loop, provider routing)
+    agent.ts     # provider-agnostic tool-protocol agent core
     providers/   # builtin (Prompt API), openai, anthropic SSE adapters
     settings.ts  # validated mv:ai provider settings
     chunk.ts     # pure streaming text helpers
@@ -165,7 +169,8 @@ e2e/             # Playwright specs
 ### Testing notes
 
 Unit tests cover the pure modules: the share codec, stream chunk normalization,
-provider delta parsers and settings repair. The Playwright suite runs against a
+provider delta parsers, settings repair and the tool-agent loop (protocol parsing,
+execution cap/termination, executor gating). The Playwright suite runs against a
 production build (`vite build` + `vite preview`) across Chromium, Firefox and
 WebKit. CI runs typecheck, lint, unit tests and build on every push and PR, plus
 the e2e job on `main`.
@@ -197,8 +202,11 @@ setup: **Settings → Pages → Source: GitHub Actions**. The site lives at
 **قلم** یک ویرایشگر مارک‌داون دوپنجره‌ای برای وب است: یک سمت می‌نویسید و سمت
 دیگر پیش‌نمایش زنده می‌بینید — و هوش مصنوعی هم به‌عنوان هم‌نویس در کنار شماست.
 
-- دستیار هوشمند مستقیماً در سند می‌نویسد: پاسخ‌ها همزمان با تولید در ویرایشگر
-  جاری می‌شوند؛ بخشی را انتخاب کنید، دستور بدهید و همان بازه بازنویسی می‌شود.
+- دستیار هوشمند خودش سند را می‌خواند و ویرایش می‌کند: تغییرها با ابزار روی سند
+  اعمال می‌شوند — درج در محل نشانگر، بازنویسی بخش انتخاب‌شده، افزودن به انتها یا
+  جایگزینی کل سند؛ اگر «ویرایش مستقیم» خاموش باشد، دستیار فقط سند را می‌خواند و
+  پیشنهادش را در گفتگو می‌نویسد؛ بخشی را انتخاب کنید، دستور بدهید و همان بازه
+  بازنویسی می‌شود.
 - هوش مصنوعی یا کاملاً روی دستگاه شما اجرا می‌شود (Gemini Nano در کروم/اج
   دسکتاپ، بدون هیچ درخواست شبکه‌ای) یا به سرویس سازگار با OpenAI/Anthropic
   خودتان وصل می‌شود؛ توکن شما فقط در مرورگر خودتان می‌ماند.

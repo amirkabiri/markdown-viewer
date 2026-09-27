@@ -51,10 +51,9 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
   direct-edit ON → tool-executed append landed in the textarea (+87 chars,
   no fence leakage in the chat bubble), OFF → document byte-identical.
   Panel visually clean — no removed-UI debris.
-- [ ] **Docs refresh (delegate)** — README still documents the removed
-  per-response action buttons, "55 unit tests" and "quick actions" in the
-  project structure; update it to the agent-loop UX and current counts.
-  Rider: add `.idea/` to `.gitignore`.
+- [x] **Docs refresh (delegate)** — DONE: README agent-loop refresh
+  (tool-editing UX, 96 unit tests, `ai/agent.ts` in the project structure)
+  + `.idea/` .gitignore rider.
 
 ### Milestone: collaborative AI writing (after migration)
 
