@@ -83,4 +83,66 @@ export default defineConfig([
       'import-x/no-extraneous-dependencies': ['error', { devDependencies: true }],
     },
   },
+
+  // AI pipeline code streams token chunks over async iterators and walks
+  // text/offset lists step by step: for...of / for await...of, await inside
+  // the loop, and continue are the clearest tools there. Airbnb's other
+  // restricted-syntax selectors (for..in, labels, with) stay enforced —
+  // this block only drops the ForOfStatement ban.
+  {
+    name: 'qalam/deltas/ai-streaming-loop-freedom',
+    files: ['src/lib/ai/**', 'src/features/ai/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ForInStatement',
+          message: 'for..in loops iterate over the entire prototype chain, which is virtually never what you want. Use Object.{keys,values,entries}, and iterate over the resulting array.',
+        },
+        {
+          selector: 'LabeledStatement',
+          message: 'Labels are a form of GOTO; using them makes code confusing and hard to maintain and understand.',
+        },
+        {
+          selector: 'WithStatement',
+          message: '`with` is disallowed in strict mode because it makes code impossible to predict and optimize.',
+        },
+      ],
+      'no-await-in-loop': 'off',
+      'no-continue': 'off',
+    },
+  },
+
+  // AI edit plans and share payloads are declared as leading-`|` union
+  // types (frozen lib style, mirrors the upstream docs); the @stylistic
+  // operator-linebreak rule only accepts trailing operators, so it is off.
+  {
+    name: 'qalam/deltas/operator-linebreak-off',
+    files: ['**/*.{js,jsx,ts,tsx}'],
+    rules: {
+      '@stylistic/operator-linebreak': 'off',
+    },
+  },
+
+  // Test files legitimately declare several small fake classes per file
+  // (house fakes-over-mocks style, see TESTING.md); the one-class limit is
+  // a production-code rule.
+  {
+    name: 'qalam/deltas/max-classes-per-file-tests',
+    files: ['**/*.test.{ts,tsx}', 'src/test/**'],
+    rules: {
+      'max-classes-per-file': 'off',
+    },
+  },
+
+  // The AI providers log download/availability problems through
+  // console.warn/error on purpose (the on-device model has no UI of its own
+  // at that point); the blanket no-console ban stays everywhere else.
+  {
+    name: 'qalam/deltas/no-console-warn-error-in-ai',
+    files: ['src/lib/ai/**', 'src/features/ai/**'],
+    rules: {
+      'no-console': ['error', { allow: ['warn', 'error'] }],
+    },
+  },
 ]);
