@@ -74,6 +74,11 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
 
 ## Working agreements
 
+- **Division of labor (binding):** the lead plans, briefs, prioritizes, decides,
+  verifies, integrates and communicates. **All implementation is done by
+  subagents — including small fixes, brand assets and hotfixes.** No task is
+  too small to delegate. The lead touches the tree only to integrate verified
+  deliverables or to unblock a stuck agent, and discloses it when that happens.
 - Package manager: **pnpm** (lockfile: `pnpm-lock.yaml`; CI uses
   `pnpm install --frozen-lockfile`; version pinned via package.json
   `packageManager` field).
