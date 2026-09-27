@@ -29,6 +29,8 @@ export interface EditorController {
   loadDocument: (text: string) => void;
   /** Tab inserts two spaces instead of moving focus (legacy bindEditor). */
   handleKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>) => void;
+  /** Focuses the textarea (new-document flow). */
+  focus: () => void;
 }
 
 /** Ordered, clamped [start, end) for a range against a document of `len` chars. */
@@ -142,6 +144,10 @@ export function useEditorController(): EditorController {
     }
   }, []);
 
+  const focus = useCallback(() => {
+    elRef.current?.focus();
+  }, []);
+
   const api = useMemo<EditorApi>(
     () => ({
       getText, getSelection, hasSelection, applyEdit,
@@ -156,5 +162,6 @@ export function useEditorController(): EditorController {
     syncFromTextarea,
     loadDocument,
     handleKeyDown,
+    focus,
   };
 }
