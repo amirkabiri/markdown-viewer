@@ -38,17 +38,18 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
     dialog (content/source links, capacity toasts), `#d=` boot routing
     (query params take precedence, hash survives refresh), `#ai-btn` +
     `initAi()` wiring; vitest scoped to unit tests
-- [ ] **Final acceptance** — e2e: share roundtrip (Persian + Mermaid → open link
-  → identical render); AI panel with built-in provider where available +
-  external provider against a mocked Anthropic/OpenAI endpoint; regression
-  matrix; board update; push.
+- [x] **Final acceptance** — DONE on the production build: share dialog →
+  copied `#d=` link → opened fresh → Persian doc + Mermaid render identically
+  (doc titled "Shared document"); AI panel verified against a mocked
+  OpenAI-compatible SSE server (stream → insert-at-cursor); builtin
+  unavailable-explainer verified on non-capable browsers; e2e suite green
+  post-integration. Site live, deployed by Actions from `main`.
 
 ## P2 — Stakeholder actions
 
-- [ ] **Flip Pages source to "GitHub Actions"** once `deploy.yml` lands
-  (Settings → Pages → Build and deployment → Source: GitHub Actions). Replaces
-  the earlier "deploy from branch" instruction — the workflow then publishes
-  `dist/` on every push to `main`.
+- [x] **Flip Pages source to "GitHub Actions"** — DONE (deploy workflow ran
+  green after the Node 22 fix; site live at
+  `https://amirkabiri.github.io/markdown-viewer/`)
 - [ ] **Repo metadata** — description + website + topics (suggestions in chat
   history).
 
