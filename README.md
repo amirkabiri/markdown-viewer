@@ -1,6 +1,8 @@
+<p align="center"><img src="public/logo.svg" width="96" alt="Qalam logo — a minimal reed-pen nib"></p>
+
 # Qalam
 
-**قلم** — "pen"
+<p align="center"><strong>قلم</strong> — "pen"</p>
 
 Collaborative Markdown editing where humans and AI write together — on-device AI (Gemini Nano) or your own OpenAI/Anthropic-compatible service. Persian/RTL-first, Mermaid diagrams, self-contained share links.
 
