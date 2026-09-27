@@ -37,7 +37,56 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
 - [x] **Verify C3** — DONE: gates green, browser pass on the production build,
   committed as `0e9116e`.
 
-### Milestone: AI agent loop (current)
+### Milestone: React rewrite + product hardening (current) — branch `react-rewrite`
+
+Stakeholder direction: rewrite the UI in **React** (the vanilla DOM code is the
+ceiling now), enforce a famous style convention (**Airbnb**), adopt
+Google-inspired automated-testing practices, add **a11y + keyboard shortcuts**
+via a famous a11y-first React UI kit (research → decide), and three AI UX
+requirements: (1) visible loading feedback while the first message warms the
+LLM, (2) explicit user consent before downloading the built-in model (~4 GB,
+never auto-download), (3) tool calls the agent made must be visible in chat.
+
+- [ ] **Agent R1 — toolchain scaffold** — React 19 + Vite + strict TS;
+  Airbnb-based ESLint flat config (+ react-hooks, jsx-a11y); vitest + React
+  Testing Library + jsdom; `STYLEGUIDE.md` (our conventions on top of
+  Airbnb) + `TESTING.md` (Google-inspired: pyramid/sizes, behavior-driven,
+  AAA, fakes over mocks, deterministic, by-role queries); legacy vanilla
+  sources moved to `legacy/` (excluded from gates, porting reference only);
+  React entry with parity: CSP meta, `base: './'`, pre-paint theme/lang
+  script, `?file=`/`?url=`/`#d=` routing contract; gates green (same script
+  names, CI unchanged)
+- [ ] **Agent R2 — UI kit research** — evaluate Radix UI primitives, React
+  Aria Components, Base UI, Ark UI, Headless UI against: WAI-ARIA quality,
+  focus/keyboard management, RTL support, headless styling freedom (bespoke
+  minimal design must survive), bundle size, React 19 compat, adoption.
+  Deliverable: `docs/uikit-research.md` with a decision + component mapping.
+  No product code.
+- [ ] **Agent R3 — domain ports** (after R1) — share codec, chunk
+  normalizer, agent loop, providers, settings, markdown render (pure
+  compute, sanitized HTML out), documents routing → typed `lib/` +
+  framework-agnostic hooks; unit tests per TESTING.md (existing 96 tests
+  must survive ported, plus new coverage)
+- [ ] **Agent R4 — shell UI** (after R3) — editor/preview split with divider,
+  theme/lang/direction, per-paragraph direction, TOC/scroll-spy, documents
+  (open dialog, recents, drag-drop), one-click share; full RTL mirroring;
+  component tests by role
+- [ ] **Agent R5 — AI parity + UX requirements** (after R2+R3) — panel on
+  the chosen kit; provider settings; agent loop with visible **tool-call
+  activity per message** (tool name + mode + running/ok/refused status,
+  not a transient note); **first-send loading states** (model warming →
+  spinner + status, never a dead silence); **builtin download consent**
+  (availability `downloadable` → confirm dialog before any download, with
+  progress once consented)
+- [ ] **Agent R6 — a11y + shortcuts pass** (after R4+R5) — complete keyboard
+  map (existing: Ctrl/⌘+O, Esc; plus documented bindings for panel, pane
+  modes, direction, share), roving focus + focus traps on overlays, aria
+  patterns audit, reduced-motion; README documents the shortcuts
+- [ ] **Acceptance — merge to main** — parity checklist EN+FA in browser,
+  the three UX requirements demoed, CI + e2e green on the PR, then merge
+  and deploy flip
+
+### Milestone: AI agent loop (done)
 
 - [x] **Agent C4 — tool-agent loop (`src/ai/agent.ts`)** — DONE, verified by
   the lead. Provider-agnostic ```qalam fenced-JSON tool protocol
