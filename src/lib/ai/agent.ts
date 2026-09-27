@@ -16,6 +16,11 @@
 //                                    JSON / unknown tool / bad args → ignored
 //   stripToolBlocks(reply)         — pure: reply with qalam blocks removed
 //   createAgent(deps).run(messages, opts?) — the event-streaming loop
+//
+// Event extension (React rewrite, R5): `tool` events carry the call's `args`
+// and `tool-result` events additionally carry `ok` (executor verdict), so a
+// UI can label edit modes and render ok vs refused per call. Consumers that
+// only switch on `type` are unaffected — the extension is additive.
 
 import type { ChatMessage, ChatProvider } from './types';
 import type { EditMode } from './edits';
@@ -49,16 +54,20 @@ export interface AgentTextEvent {
   text: string;
 }
 
-/** Tool executing. */
+/** Tool executing. `args` identifies the call (the UI labels edit modes). */
 export interface AgentToolEvent {
   type: 'tool';
   tool: AgentTool;
+  args: AgentToolCall['args'];
 }
 
-/** Tool finished. */
+/** Tool finished. `ok` mirrors the executor verdict (false = the edit was
+ *  refused — write permission off or the replace-document confirm cancelled). */
 export interface AgentToolResultEvent {
   type: 'tool-result';
   tool: AgentTool;
+  args: AgentToolCall['args'];
+  ok: boolean;
 }
 
 /** Final full reply text (qalam blocks stripped). */
@@ -183,13 +192,19 @@ function clipToolResult(text: string): string {
 export function createAgent(deps: AgentDeps) {
   const maxToolCalls = deps.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
 
-  /** Executes one call, returns the TOOL RESULT payload string. */
-  function execute(call: AgentToolCall): string {
-    if (call.tool === 'read_document') return clipToolResult(deps.executor.readDocument());
+  /** Executes one call, returns the executor verdict plus the TOOL RESULT
+   *  payload string. */
+  function execute(call: AgentToolCall): { ok: boolean; payload: string } {
+    if (call.tool === 'read_document') {
+      return { ok: true, payload: clipToolResult(deps.executor.readDocument()) };
+    }
     const ok = deps.executor.editDocument(call.args.mode as EditMode, call.args.text ?? '');
-    return ok
-      ? 'OK — the edit was applied to the document.'
-      : 'REFUSED — write access is disabled or the edit was cancelled. Do not retry; include the text in your Markdown reply instead.';
+    return {
+      ok,
+      payload: ok
+        ? 'OK — the edit was applied to the document.'
+        : 'REFUSED — write access is disabled or the edit was cancelled. Do not retry; include the text in your Markdown reply instead.',
+    };
   }
 
   return {
@@ -208,7 +223,6 @@ export function createAgent(deps: AgentDeps) {
         try {
           const iterator = deps.provider.stream(convo, opts)[Symbol.asyncIterator]();
           for (;;) {
-            // eslint-disable-next-line no-await-in-loop -- sequential stream consumption
             const { done, value: piece } = await iterator.next();
             if (done === true) break;
             if (piece) {
@@ -244,10 +258,16 @@ export function createAgent(deps: AgentDeps) {
           let i = 0;
           while (i < calls.length && executed < maxToolCalls) {
             const call = calls[i];
-            yield { type: 'tool', tool: call.tool };
-            results.push(`TOOL RESULT (${call.tool}): ${execute(call)}`);
+            yield { type: 'tool', tool: call.tool, args: call.args };
+            const { ok, payload } = execute(call);
+            results.push(`TOOL RESULT (${call.tool}): ${payload}`);
             executed += 1;
-            yield { type: 'tool-result', tool: call.tool };
+            yield {
+              type: 'tool-result',
+              tool: call.tool,
+              args: call.args,
+              ok,
+            };
             i += 1;
           }
           if (results.length === 0) {

@@ -165,7 +165,7 @@ describe('createAgent().run — read_document', () => {
     // Event flow: text… → tool → tool-result → text… → done
     expect(shape(events)).toEqual(['text', 'tool', 'tool-result', 'text', 'done']);
     expect(events.filter((e) => e.type === 'tool'))
-      .toEqual([{ type: 'tool', tool: 'read_document' }]);
+      .toEqual([{ type: 'tool', tool: 'read_document', args: {} }]);
     expect(doneOf(events)).toBe(turn2);
   });
 
@@ -207,6 +207,48 @@ describe('createAgent().run — edit_document', () => {
     expect(provider.calls[1][2].content).toContain('TOOL RESULT (edit_document): REFUSED');
     expect(doneOf(events)).toBe('Here is the text instead.');
     expect(shape(events)).toEqual(['text', 'tool', 'tool-result', 'text', 'done']);
+  });
+});
+
+describe('createAgent().run — event payloads', () => {
+  it('carries the call args on tool events and the executor verdict on tool-result', async () => {
+    const turn = '```qalam\n{"tool": "edit_document", "args": {"mode": "append", "text": "tail"}}\n```';
+    const provider = new FakeProvider(turn, 'all done');
+    const events = await collect(createAgent({ provider, executor: new FakeExecutor() }).run(CHAT));
+
+    const tool = events.find((e) => e.type === 'tool');
+    expect(tool).toEqual({
+      type: 'tool',
+      tool: 'edit_document',
+      args: { mode: 'append', text: 'tail' },
+    });
+    const result = events.find((e) => e.type === 'tool-result');
+    expect(result).toEqual({
+      type: 'tool-result',
+      tool: 'edit_document',
+      args: { mode: 'append', text: 'tail' },
+      ok: true,
+    });
+  });
+
+  it('reports ok: false on a refused edit_document (executor verdict)', async () => {
+    const provider = new FakeProvider(readCall('SUGGESTION'), 'Here is the text instead.');
+    const executor = new FakeExecutor();
+    executor.editResult = false;
+    const events = await collect(createAgent({ provider, executor }).run(CHAT));
+
+    const result = events.find((e): e is Extract<AgentEvent, { type: 'tool-result' }> => e.type === 'tool-result');
+    expect(result?.ok).toBe(false);
+    expect(result?.args).toEqual({ mode: 'replace-selection', text: 'SUGGESTION' });
+  });
+
+  it('reports ok: true for read_document results', async () => {
+    const turn = 'Let me look.\n\n```qalam\n{"tool": "read_document", "args": {}}\n```';
+    const provider = new FakeProvider(turn, 'The document says hi.');
+    const events = await collect(createAgent({ provider, executor: new FakeExecutor() }).run(CHAT));
+
+    const result = events.find((e): e is Extract<AgentEvent, { type: 'tool-result' }> => e.type === 'tool-result');
+    expect(result).toMatchObject({ type: 'tool-result', tool: 'read_document', ok: true });
   });
 });
 
