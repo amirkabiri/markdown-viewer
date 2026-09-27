@@ -1,14 +1,22 @@
-// Module: ai — assistant panel + provider layer. Owner of the provider
-// selector, provider settings UI (localStorage `mv:ai`), the builtin
-// availability state machine, panel UI, and request routing. The active
-// provider is either the on-device Prompt API ('builtin') or a user
-// configured OpenAI-/Anthropic-compatible HTTP service. With `directEdit`
-// enabled the assistant also writes into the document textarea itself
-// (stream-insert/replace via ai/edits.ts) instead of panel-only output.
+// Module: ai — assistant panel + agent loop. Owner of the provider selector,
+// provider settings UI (localStorage `mv:ai`), the builtin availability state
+// machine, panel UI, and request routing. The active provider is either the
+// on-device Prompt API ('builtin') or a user configured OpenAI-/Anthropic-
+// compatible HTTP service. Chat runs through the tool-protocol agent loop
+// (ai/agent.ts): the model reads/edits the document by emitting ```qalam tool
+// calls, which the loop executes against a ToolExecutor. The `directEdit`
+// toggle is the agent's WRITE permission — ON: edit_document applies edits
+// (confirm for replace-document) via ai/edits.ts; OFF: writes are refused and
+// the agent includes suggested text in its reply instead. Selection-aware
+// sends pin edit_document's replace-selection to the selection captured at
+// send time. Assistant bubbles are the audit trail (text only — the old
+// per-message edit/copy footer buttons are gone; the agent IS the apply path).
 //
 // Provider matrix (which backend serves which action):
 //   chat send   builtin → Prompt API promptStreaming (prompt() fallback)
 //               openai/anthropic → provider SSE stream
+//               …all through the provider-agnostic agent loop (no native
+//               function calling — builtin Gemini Nano has none)
 //   summarize   builtin → native Summarizer, else Prompt API via provider
 //               external → provider stream (summarize prompt)
 //   rewrite     builtin → native Rewriter (origin trial, best effort), else
@@ -22,11 +30,11 @@
 import { state, editor, toast } from '../state.js';
 import { t, registerI18n } from '../i18n.js';
 import { loadSettings, saveSettings, normalizeSettings, isExternalReady } from './settings.js';
-import { BuiltinProvider } from './providers/builtin.js';
+import { BuiltinProvider, BUILTIN_SYSTEM_PROMPT } from './providers/builtin.js';
 import { createOpenAIProvider } from './providers/openai.js';
 import { createAnthropicProvider } from './providers/anthropic.js';
-import { selfAi, type AiLangPair } from './ambient.js';
-import { applyEdit, buildSelectionMessages, type EditMode } from './edits.js';
+import { createAgent, agentSystemPrompt, type AgentTool, type ToolExecutor } from './agent.js';
+import { applyEdit, buildSelectionMessages } from './edits.js';
 import type { ChatMessage, ChatProvider, ProviderId, ProviderSettings } from './types.js';
 
 /* ---------------- public streaming helper (frozen export) ---------------- */
@@ -44,11 +52,6 @@ registerI18n({
     en: 'Ask the assistant to write, improve, or draw (mermaid)…',
     fa: 'از دستیار بخواهید بنویسد، بهبود دهد یا نمودار (mermaid) بکشد…',
   },
-  aiSummarize: { en: 'Summarize doc', fa: 'خلاصهٔ سند' },
-  aiRewrite: { en: 'Rewrite selection', fa: 'بازنویسی انتخاب' },
-  aiTranslate: { en: 'Translate', fa: 'ترجمه' },
-  aiInsert: { en: 'Insert at cursor', fa: 'درج در نشانگر' },
-  aiCopy: { en: 'Copy', fa: 'کپی' },
   aiDownloadModel: { en: 'Download AI model (~4 GB)', fa: 'بارگیری مدل هوش مصنوعی (~۴ گیگابایت)' },
   aiDownloadProgress: { en: 'Downloading model…', fa: 'در حال بارگیری مدل…' },
   aiUnavailableExplainer: {
@@ -56,8 +59,6 @@ registerI18n({
     fa: 'هوش مصنوعی روی دستگاه در این مرورگر در دسترس نیست. این قابلیت در مرورگرهای Chromium دسکتاپ (کروم، اج) روی HTTPS و پس از بارگیری یک‌بارهٔ مدل ~۴ گیگابایتی ارائه می‌شود — بخش «Optimization Guide On Device Model» را در chrome://components بررسی کنید یا chrome://flags/#optimization-guide-on-device-model (نسخه‌های قدیمی‌تر: #prompt-api-for-gemini-nano) را فعال کنید. این برنامه هیچ درخواست شبکه‌ای نمی‌فرستد؛ مدل کاملاً داخل مرورگر شما اجرا می‌شود.',
   },
   aiChecking: { en: 'Checking AI availability…', fa: 'بررسی دسترسی هوش مصنوعی…' },
-  aiNoSelection: { en: 'Select some text in the editor first', fa: 'ابتدا متنی در ویرایشگر انتخاب کنید' },
-  aiTranslateUnavailable: { en: 'This language pair is not available offline', fa: 'این جفت‌زبان به‌صورت آفلاین در دسترس نیست' },
   aiWorking: { en: 'Working…', fa: 'در حال پردازش…' },
   // Provider settings (new keys — no collisions with the keys above)
   aiSettings: { en: 'AI service', fa: 'سرویس هوش مصنوعی' },
@@ -75,27 +76,21 @@ registerI18n({
     en: 'Enter the base URL and model to enable this provider (token optional).',
     fa: 'برای فعال‌سازی این سرویس‌دهنده، نشانی پایه و مدل را وارد کنید (توکن اختیاری است).',
   },
-  // Direct editing (new keys — no collisions with the keys above)
+  // Direct editing = the agent's write permission (new keys — no collisions)
   aiDirectEdit: { en: 'Direct editing', fa: 'ویرایش مستقیم' },
-  aiDirectEditHint: { en: 'The assistant writes directly into the document', fa: 'دستیار مستقیماً در سند می‌نویسد' },
-  aiAppend: { en: 'Append to end', fa: 'افزودن به پایان' },
-  aiReplaceSelection: { en: 'Replace selection', fa: 'جایگزینی انتخاب' },
-  aiReplaceDocument: { en: 'Replace document', fa: 'جایگزینی کل سند' },
-  aiReplaceDocConfirm: { en: 'Replace the whole document with this text?', fa: 'کل سند با این متن جایگزین شود؟' },
+  aiDirectEditHint: {
+    en: 'Let the assistant edit the document directly (off = suggestions in chat only)',
+    fa: 'به دستیار اجازهٔ ویرایش مستقیم سند را بده (خاموش = پیشنهاد فقط در گفتگو)',
+  },
+  // Tool progress notes (agent loop)
+  aiToolRead: { en: 'Reading document…', fa: 'در حال خواندن سند…' },
+  aiToolEdit: { en: 'Editing document…', fa: 'در حال ویرایش سند…' },
   aiSelectionChip: { en: 'Editing selection', fa: 'ویرایش انتخاب' },
 });
 
 /* ---------------- constants ---------------- */
-
-/* Soft cap for document/selection text sent to any model (context windows are
-   limited; the editor itself allows up to 10 MB). Keeps head + tail. */
-const MAX_PROMPT_CHARS = 12000;
-
-function clip(text: string, max = MAX_PROMPT_CHARS): string {
-  if (text.length <= max) return text;
-  const half = Math.floor(max / 2);
-  return text.slice(0, half) + '\n\n[…]\n\n' + text.slice(-half);
-}
+/* (none — the prompt soft cap lives in ai/edits.ts clipContext and
+   ai/agent.ts MAX_TOOL_RESULT_CHARS) */
 
 /* ---------------- module state ---------------- */
 
@@ -106,7 +101,6 @@ let statusEl: HTMLElement | null = null;
 let messagesEl: HTMLElement | null = null;
 let inputEl: HTMLTextAreaElement | null = null;
 let sendBtn: HTMLButtonElement | null = null;
-const chipEls: HTMLButtonElement[] = [];
 
 // Settings section (draft fields; applied on Save)
 let settingsToggle: HTMLButtonElement | null = null;
@@ -117,13 +111,12 @@ let modelInput: HTMLInputElement | null = null;
 let settingsBody: HTMLElement | null = null;
 const extFieldEls: HTMLElement[] = [];
 
-// Direct editing: settings-section checkbox + compact header mirror (same
-// state), the selection chip above the composer, and the per-message
-// replace-selection footer buttons (re-enabled when the panel opens).
+// Direct editing (= the agent's write permission): settings-section checkbox
+// + compact header mirror (same state), and the selection chip above the
+// composer.
 let directEditCb: HTMLInputElement | null = null;
 let directEditMirror: HTMLInputElement | null = null;
 let selectionChip: HTMLElement | null = null;
-const replaceSelBtns: HTMLButtonElement[] = [];
 
 type Availability = 'checking' | 'available' | 'downloadable' | 'downloading' | 'unavailable';
 
@@ -188,14 +181,8 @@ const AI_CSS = `
 .ai-msg-assistant{align-self:stretch;padding:9px 11px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elev)}
 .ai-msg-text{font-family:var(--mono);font-size:12.5px;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)}
 .ai-msg-text:empty{display:none}
-.ai-msg-foot{display:flex;gap:6px;margin-top:8px}
-.ai-mini{display:inline-flex;align-items:center;gap:5px;height:25px;padding-inline:9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-elev);color:var(--text-muted);font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer}
-.ai-mini:hover{background:var(--bg-subtle);color:var(--text)}
-.ai-mini.ai-ok{border-color:var(--ok);color:var(--ok)}
-.ai-actions{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;flex-shrink:0;border-top:1px solid var(--border)}
-.ai-chip{flex:1;display:inline-flex;align-items:center;justify-content:center;height:30px;padding-inline:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elev);color:var(--text);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
-.ai-chip:hover{background:var(--bg-subtle)}
-.ai-chip:disabled{opacity:.5;cursor:default}
+.ai-tool-note{margin-top:6px;font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--text-muted)}
+.ai-tool-note[hidden]{display:none}
 .ai-composer{display:flex;gap:6px;align-items:flex-end;padding:0 12px 12px;flex-shrink:0}
 .ai-input{flex:1;min-height:36px;max-height:130px;resize:none;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elev);color:var(--text);font-family:var(--sans);font-size:13px;line-height:1.6}
 .ai-input:focus{border-color:var(--accent);outline:none}
@@ -239,7 +226,6 @@ function syncControls(): void {
   const ready = isReady();
   inputEl!.disabled = !ready;
   sendBtn!.disabled = !ready || busy;
-  for (const chip of chipEls) chip.disabled = busy;
 }
 
 function setBusy(next: boolean): void {
@@ -308,7 +294,7 @@ async function startDownload(): Promise<void> {
 
 /* ---------------- provider gating + routing ---------------- */
 
-/** Builtin gate for quick actions; points the user at the download button if needed. */
+/** Ensure a provider is ready; guides the user to settings/download otherwise. */
 async function ensureBuiltin(): Promise<BuiltinProvider | null> {
   if (!builtinProvider.supported) { toast(t('aiUnavailableExplainer'), 'error'); return null; }
   if (avail === 'checking') await refreshAvailability();
@@ -339,59 +325,54 @@ async function ensureProvider(): Promise<ChatProvider | null> {
 }
 
 /**
- * Direct-edit streaming sink: pins a target range in the editor at request
- * start. Empty range → progressive insert at the fixed offset (chat /
- * summarize, per chunk: setRangeText(piece, offset, offset, 'end')). Non-empty
- * range → the accumulated text progressively rewrites the original selection
- * window (rewrite / translate / selection-aware chat). Every chunk dispatches
- * a bubbling input event; the app's 300 ms render debounce keeps preview
- * updates cheap. No focus steal — the panel message mirrors the text as the
- * audit trail.
+ * Applies `text` to a PINNED editor range [a, b) — the agent's replace-
+ * selection for a selection-aware send, targeted at the selection captured at
+ * send time rather than the live one. Same mechanics as applyEdit
+ * (execCommand insertText for the native undo stack, setRangeText fallback,
+ * bubbling input event, no confirm needed — it can only rewrite the
+ * selection the user explicitly targeted).
  */
-function makeStreamSink(start: number, end: number): (piece: string) => void {
+function applyEditRange(a: number, b: number, text: string): boolean {
   const len = editor.value.length;
-  const a = Math.max(0, Math.min(start, len));
-  const b = Math.max(a, Math.min(end, len));
-  if (a === b) {
-    let offset = a;
-    return (piece) => {
-      if (!piece) return;
-      editor.setRangeText(piece, offset, offset, 'end');
-      offset += piece.length;
-      editor.dispatchEvent(new Event('input', { bubbles: true }));
-    };
+  const start = Math.max(0, Math.min(a, len));
+  const end = Math.max(start, Math.min(b, len));
+  editor.focus();
+  let done = false;
+  if (text !== '') {
+    try {
+      editor.setSelectionRange(start, end);
+      done = document.execCommand('insertText', false, text);
+    } catch { done = false; }
   }
-  let acc = '';
-  return (piece) => {
-    acc += piece;
-    if (!acc) return;
-    editor.setRangeText(acc, a, b, 'end'); // rewrite the original selection window
-    editor.dispatchEvent(new Event('input', { bubbles: true }));
+  if (!done) editor.setRangeText(text, start, end, 'end');
+  editor.dispatchEvent(new Event('input', { bubbles: true }));
+  return true;
+}
+
+/**
+ * The agent's hands. Read access is always granted (read_document returns the
+ * live document). Write access is the directEdit toggle: OFF → editDocument
+ * refuses everything (the system prompt tells the agent to suggest text in
+ * its reply instead); ON → edits route through applyEdit (undo-preserving,
+ * confirm only for replace-document), with replace-selection pinned to the
+ * range captured at send time for selection-aware sends.
+ */
+function makeExecutor(opts: { pinnedRange?: [number, number] | null }): ToolExecutor {
+  return {
+    readDocument: () => editor.value,
+    editDocument: (mode, text) => {
+      if (settings.directEdit !== true) return false;
+      if (mode === 'replace-selection' && opts.pinnedRange) {
+        return applyEditRange(opts.pinnedRange[0], opts.pinnedRange[1], text);
+      }
+      return applyEdit(mode, text);
+    },
   };
 }
 
-/** Streams through the provider, mirroring deltas into the assistant bubble
- *  (audit trail) and, in direct-edit mode, into the document via `onDelta`. */
-async function streamViaProvider(
-  provider: ChatProvider,
-  messages: ChatMessage[],
-  msg: AssistantMsg,
-  onDelta?: (piece: string) => void,
-): Promise<string> {
-  let full = '';
-  let first = true;
-  try {
-    for await (const piece of provider.stream(messages)) {
-      if (!piece) continue;
-      if (first) { first = false; msg.set(''); }
-      full += piece;
-      msg.append(piece);
-      onDelta?.(piece);
-    }
-  } catch (err) {
-    console.warn('[ai] streaming failed', err);
-  }
-  return full;
+/** Maps the agent's tool events onto i18n'd progress notes for the bubble. */
+function toolNote(tool: AgentTool): string {
+  return t(tool === 'read_document' ? 'aiToolRead' : 'aiToolEdit');
 }
 
 /* ---------------- messages area ---------------- */
@@ -404,69 +385,33 @@ function addUserMsg(text: string): void {
 }
 
 /**
- * Assistant message: plain text (white-space: pre-wrap — no sanitization needed,
- * nothing is parsed as HTML here; text inserted into the editor flows through the
- * app's existing DOMPurify preview pipeline) + edit/copy footer. The edit
- * buttons route through applyEdit (undo-preserving where possible); in
- * direct-edit streaming mode the text has already been written into the
- * document — the buttons still work, operating on the final text from the
- * current document state (no double-apply: applyEdit reads the live editor).
+ * Assistant message: plain text only (white-space: pre-wrap — no sanitization
+ * needed, nothing is parsed as HTML here; text inserted into the editor flows
+ * through the app's existing DOMPurify preview pipeline). There are no
+ * per-message action buttons: edits go through the agent's edit_document tool
+ * calls, so the bubble is the audit trail. A transient `.ai-tool-note` line
+ * surfaces which tool the agent is executing.
  */
 function addAssistantMsg() {
   const wrap = el('div', 'ai-msg ai-msg-assistant');
   const textEl = el('div', 'ai-msg-text');
-  const foot = el('div', 'ai-msg-foot');
-
-  const makeBtn = (key: string): HTMLButtonElement => {
-    const btn = el('button', 'ai-mini', t(key));
-    btn.type = 'button';
-    btn.setAttribute('data-i18n', key);
-    return btn;
-  };
-  const insertBtn = makeBtn('aiInsert');
-  const replaceSelBtn = makeBtn('aiReplaceSelection');
-  const appendBtn = makeBtn('aiAppend');
-  const replaceDocBtn = makeBtn('aiReplaceDocument');
-  const copyBtn = makeBtn('aiCopy');
-
-  // Replace-selection only makes sense with something selected; re-evaluated
-  // when the panel opens (refreshReplaceSelButtons).
-  replaceSelBtn.disabled = editor.selectionStart === editor.selectionEnd;
-  replaceSelBtns.push(replaceSelBtn);
-
-  foot.append(insertBtn, replaceSelBtn, appendBtn, replaceDocBtn, copyBtn);
-  wrap.append(textEl, foot);
+  const noteEl = el('div', 'ai-tool-note');
+  noteEl.hidden = true;
+  wrap.append(textEl, noteEl);
   messagesEl!.appendChild(wrap);
   scrollMessages();
 
   let full = '';
-  const flash = (btn: HTMLButtonElement): void => {
-    btn.classList.add('ai-ok');
-    setTimeout(() => btn.classList.remove('ai-ok'), 1200);
-  };
-  const apply = (mode: EditMode, btn: HTMLButtonElement): void => {
-    if (!full) return;
-    if (applyEdit(mode, full)) flash(btn); // false = replace-document cancelled
-  };
-  insertBtn.addEventListener('click', () => apply('cursor', insertBtn));
-  replaceSelBtn.addEventListener('click', () => apply('replace-selection', replaceSelBtn));
-  appendBtn.addEventListener('click', () => apply('append', appendBtn));
-  replaceDocBtn.addEventListener('click', () => apply('replace-document', replaceDocBtn));
-  copyBtn.addEventListener('click', async () => {
-    if (!full) return;
-    try {
-      await navigator.clipboard.writeText(full);
-      flash(copyBtn);
-    } catch (err) {
-      console.warn('[ai] clipboard write failed', err);
-    }
-  });
-
   return {
     wrap,
     set(text: string) { full = text; textEl.textContent = text; scrollMessages(); },
-    append(piece: string) { full += piece; textEl.textContent = full; scrollMessages(); },
     get text() { return full; },
+    /** Shows (text) or clears (null) the tool-progress note. */
+    note(text: string | null) {
+      noteEl.hidden = text == null;
+      noteEl.textContent = text ?? '';
+      scrollMessages();
+    },
   };
 }
 
@@ -484,6 +429,7 @@ async function withAssistantMessage(run: (msg: AssistantMsg) => Promise<unknown>
   } catch (err) {
     console.error('[ai] request failed', err);
   } finally {
+    msg.note(null);
     setBusy(false);
   }
   if (!out) msg.wrap.remove(); // remove the "Working…" bubble when the task produced nothing
@@ -495,7 +441,8 @@ async function send(): Promise<void> {
   const question = inputEl!.value.trim();
   if (!question || busy || !isReady()) return;
   // Pin the document/selection state before any await: it decides the prompt
-  // (whole-document chat vs selection-aware chat) and the direct-edit target.
+  // (whole-document chat vs selection-aware chat) and the agent's pinned
+  // replace-selection target.
   const a = editor.selectionStart;
   const b = editor.selectionEnd;
   const docText = editor.value;
@@ -506,143 +453,44 @@ async function send(): Promise<void> {
   if (!provider) return;
   inputEl!.value = '';
   addUserMsg(question);
-  const messages = hasSelection
-    ? buildSelectionMessages(question, selected, docText)
-    : [{ role: 'user' as const, content: question }];
-  // Direct edit ON → stream into the document (replace the pinned selection
-  // for selection-aware chat, insert at the cursor otherwise); OFF → panel
-  // only, with the footer buttons as the manual path.
-  const sink = settings.directEdit === true ? makeStreamSink(a, b) : null;
-  await withAssistantMessage((msg) =>
-    streamViaProvider(provider, messages, msg, sink ?? undefined));
-}
 
-/* ---------------- quick actions ---------------- */
-
-/** Native Summarizer path (builtin only). '' when unsupported/failed. */
-async function nativeSummarize(doc: string): Promise<string> {
-  if (!selfAi.Summarizer) return '';
-  try {
-    const av = await selfAi.Summarizer.availability();
-    if (av !== 'available' && av !== 'downloadable') return '';
-    const summarizer = await selfAi.Summarizer.create({ type: 'key-points', format: 'markdown', length: 'short' });
-    try {
-      return String(await summarizer.summarize(doc) || '');
-    } finally {
-      try { summarizer.destroy(); } catch { /* ignore */ }
-    }
-  } catch (err) {
-    console.warn('[ai] Summarizer path failed — falling back to the active provider', err);
-    return '';
+  // The agent's system prompt: persona + tool protocol (+ read-only note when
+  // directEdit is off — the executor refuses writes and the agent answers
+  // with suggested text in the reply instead).
+  const readOnly = settings.directEdit !== true;
+  let agentPrompt = agentSystemPrompt({ readOnly });
+  if (hasSelection && !readOnly) {
+    agentPrompt += '\n\nApply the edited selection with edit_document in "replace-selection" mode.';
   }
-}
+  const messages: ChatMessage[] = hasSelection
+    ? withAgentPrompt(buildSelectionMessages(question, selected, docText), agentPrompt)
+    : [
+        { role: 'system', content: `${BUILTIN_SYSTEM_PROMPT}\n\n${agentPrompt}` },
+        { role: 'user', content: question },
+      ];
 
-/** Native Rewriter path (builtin only; origin-trial-gated, best effort). */
-async function nativeRewrite(text: string): Promise<string> {
-  if (!selfAi.Rewriter) return '';
-  try {
-    const av = await selfAi.Rewriter.availability();
-    if (av === 'unavailable') return '';
-    const rewriter = await selfAi.Rewriter.create({ tone: 'as-is', format: 'as-is', length: 'as-is', sharedContext: 'Markdown editor' });
-    try {
-      return String(await rewriter.rewrite(text, { context: 'Keep the Markdown syntax intact.' }) || '');
-    } finally {
-      try { rewriter.destroy(); } catch { /* ignore */ }
-    }
-  } catch (err) {
-    console.warn('[ai] Rewriter path failed — falling back to the active provider', err);
-    return '';
-  }
-}
+  // Selection-aware sends pin edit_document's replace-selection to the range
+  // captured above, even though the tool fires later (after reads/retries).
+  const executor = makeExecutor({ pinnedRange: hasSelection ? [a, b] : null });
+  const agent = createAgent({ provider, executor });
 
-async function quickSummarize(): Promise<void> {
-  addUserMsg(t('aiSummarize'));
   await withAssistantMessage(async (msg) => {
-    // Direct edit ON: the summary stream-inserts at the pinned cursor.
-    const cursor = editor.selectionStart;
-    const sink = settings.directEdit === true ? makeStreamSink(cursor, cursor) : null;
-    const doc = clip(editor.value);
-    if (settings.provider === 'builtin') {
-      const native = await nativeSummarize(doc);
-      if (native) { sink?.(native); return native; } // non-streaming path: single edit
+    let final = '';
+    for await (const ev of agent.run(messages)) {
+      if (ev.type === 'text') msg.set(ev.text);
+      else if (ev.type === 'tool') msg.note(toolNote(ev.tool));
+      else if (ev.type === 'tool-result') msg.note(null);
+      else if (ev.type === 'done') final = ev.text;
     }
-    const provider = await ensureProvider();
-    if (!provider) return '';
-    return streamViaProvider(provider,
-      [{ role: 'user', content: 'Summarize the following document as key points in Markdown:\n\n' + doc }], msg,
-      sink ?? undefined);
+    return final;
   });
 }
 
-async function quickRewrite(): Promise<void> {
-  const a = editor.selectionStart;
-  const b = editor.selectionEnd;
-  const selection = editor.value.slice(a, b);
-  if (!selection.trim()) { toast(t('aiNoSelection'), 'error'); return; }
-  addUserMsg(t('aiRewrite'));
-  await withAssistantMessage(async (msg) => {
-    // Direct edit ON: the result stream-REPLACEs the pinned selection.
-    const sink = settings.directEdit === true ? makeStreamSink(a, b) : null;
-    const text = clip(selection);
-    if (settings.provider === 'builtin') {
-      const native = await nativeRewrite(text);
-      if (native) { sink?.(native); return native; }
-    }
-    const provider = await ensureProvider();
-    if (!provider) return '';
-    return streamViaProvider(provider,
-      [{ role: 'user', content: 'Rewrite the following Markdown selection to improve clarity, grammar, and flow. Keep the Markdown syntax intact and reply only with the rewritten Markdown:\n\n' + text }], msg,
-      sink ?? undefined);
-  });
-}
-
-function translatePrompt(text: string): string {
-  // Same direction the native Translator pair follows: it mirrors the UI language.
-  const target = state.lang === 'fa' ? 'English' : 'Persian (Farsi)';
-  return `Translate the following Markdown text to ${target}. Keep the Markdown syntax intact and reply only with the translated Markdown:\n\n${text}`;
-}
-
-async function quickTranslate(): Promise<void> {
-  const a = editor.selectionStart;
-  const b = editor.selectionEnd;
-  const selection = editor.value.slice(a, b);
-  if (!selection.trim()) { toast(t('aiNoSelection'), 'error'); return; }
-
-  if (settings.provider !== 'builtin') {
-    addUserMsg(t('aiTranslate'));
-    await withAssistantMessage(async (msg) => {
-      // Direct edit ON: the result stream-REPLACEs the pinned selection.
-      const sink = settings.directEdit === true ? makeStreamSink(a, b) : null;
-      const provider = await ensureProvider();
-      if (!provider) return '';
-      return streamViaProvider(provider, [{ role: 'user', content: translatePrompt(clip(selection)) }], msg,
-        sink ?? undefined);
-    });
-    return;
-  }
-
-  // Pair follows the UI language. NOTE: fa pairs are not in the Translator table —
-  // availability() honestly reports 'unavailable'; never declare languages: ['fa'].
-  const pair: AiLangPair = state.lang === 'fa'
-    ? { sourceLanguage: 'fa', targetLanguage: 'en' }
-    : { sourceLanguage: 'en', targetLanguage: 'fa' };
-  if (!selfAi.Translator) { toast(t('aiTranslateUnavailable'), 'error'); return; }
-  let av = 'unavailable';
-  try { av = await selfAi.Translator.availability(pair); } catch { /* stays unavailable */ }
-  if (av !== 'available' && av !== 'downloadable') { toast(t('aiTranslateUnavailable'), 'error'); return; }
-  addUserMsg(t('aiTranslate'));
-  await withAssistantMessage(async () => {
-    // Direct edit ON: the non-streaming native result replaces the pinned selection in one edit.
-    const sink = settings.directEdit === true ? makeStreamSink(a, b) : null;
-    const translator = await selfAi.Translator!.create(pair);
-    try {
-      const translated = String(await translator.translate(clip(selection)) || '');
-      if (translated) sink?.(translated);
-      return translated;
-    } finally {
-      try { translator.destroy(); } catch { /* ignore */ }
-    }
-  });
+/** Appends the agent tool protocol to the system message of a prompt. */
+function withAgentPrompt(messages: ChatMessage[], agentPrompt: string): ChatMessage[] {
+  const [first, ...rest] = messages;
+  if (first?.role !== 'system') return messages; // nothing to augment (defensive)
+  return [{ role: 'system', content: `${first.content}\n\n${agentPrompt}` }, ...rest];
 }
 
 /* ---------------- provider settings section ---------------- */
@@ -782,16 +630,6 @@ function buildSettingsSection(): HTMLElement {
 
 function isOpen(): boolean { return !!panel && !panel.hidden; }
 
-/** Replace-selection footer buttons need a non-empty editor selection. */
-function refreshReplaceSelButtons(): void {
-  const disabled = editor.selectionStart === editor.selectionEnd;
-  for (let i = replaceSelBtns.length - 1; i >= 0; i--) {
-    const btn = replaceSelBtns[i];
-    if (!btn.isConnected) { replaceSelBtns.splice(i, 1); continue; } // bubble was removed
-    btn.disabled = disabled;
-  }
-}
-
 /** Selection chip above the composer: shown while a non-empty selection is
  *  the chat target. Digits follow the UI locale (same pattern as the counts). */
 function refreshSelectionChip(): void {
@@ -810,7 +648,6 @@ function openAi(): void {
   panel!.hidden = false;
   aiBtn!.setAttribute('aria-expanded', 'true');
   syncDirectEditControls();
-  refreshReplaceSelButtons(); // selection may have changed while the panel was closed
   refreshSelectionChip();
   if (settings.provider === 'builtin') {
     if (avail === 'checking') refreshAvailability();
@@ -863,16 +700,6 @@ function buildPanel(): void {
 
   messagesEl = el('div', 'ai-messages');
 
-  const actions = el('div', 'ai-actions');
-  ([['aiSummarize', quickSummarize], ['aiRewrite', quickRewrite], ['aiTranslate', quickTranslate]] as const)
-    .forEach(([key, fn]) => {
-      const chip = el('button', 'ai-chip', t(key));
-      chip.type = 'button';
-      chip.setAttribute('data-i18n', key);
-      chip.addEventListener('click', () => { if (!busy) fn(); });
-      actions.appendChild(chip);
-      chipEls.push(chip);
-    });
 
   const composer = el('div', 'ai-composer');
   inputEl = el('textarea', 'ai-input');
@@ -897,7 +724,7 @@ function buildPanel(): void {
   selectionChip = el('div', 'ai-selchip');
   selectionChip.hidden = true;
 
-  panel.append(head, statusEl, settingsSection, messagesEl, actions, selectionChip, composer);
+  panel.append(head, statusEl, settingsSection, messagesEl, selectionChip, composer);
   document.body.appendChild(panel);
   renderStatus();
 }

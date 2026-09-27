@@ -25,16 +25,36 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
   - [x] **Agent P — Playwright e2e** — DONE, 12 tests green on
     chromium/firefox/webkit (3 consecutive runs): boot/render/Mermaid smoke,
     theme persistence, live typing; e2e CI job auto-activates now
-- [ ] **Commit T2's workflows** (verify YAML; they activate once T1's scripts exist)
+- [x] **Commit T2's workflows** — DONE (Node 22 hotfix `4169f32`; quality +
+  e2e jobs green, Pages deploy green)
 
-### Milestone: AI direct document editing (current)
+### Milestone: AI direct document editing
 
 - [x] **Agent C3 — direct-edit access + selection-aware chat** — DONE,
   browser-verified end-to-end through a mock OpenAI provider: select →
   instruct → streamed replacement of the selection in the textarea; 22 new
   tests (77 total green); `directEdit` toggle persisted
-- [ ] **Verify C3** — typecheck/lint/tests/build + browser pass (stream into
-  textarea in FA, replace selection, undo behavior), commit + push.
+- [x] **Verify C3** — DONE: gates green, browser pass on the production build,
+  committed as `0e9116e`.
+
+### Milestone: AI agent loop (current)
+
+- [x] **Agent C4 — tool-agent loop (`src/ai/agent.ts`)** — DONE, verified by
+  the lead. Provider-agnostic ```qalam fenced-JSON tool protocol
+  (`read_document` / `edit_document`, max 3 executions per run), executor
+  gates writes on the direct-edit toggle (OFF → read-only, agent suggests
+  text in chat), replace-selection pinned to the range captured at send
+  time. Removed the 5 per-message footer buttons, the quick-action chips and
+  the dead `clip()`/`makeStreamSink`/`streamViaProvider` plumbing. Gates
+  green (typecheck/lint/build, 96 unit tests incl. 19 new agent tests).
+  Browser pass against a mock OpenAI SSE provider on the production build:
+  direct-edit ON → tool-executed append landed in the textarea (+87 chars,
+  no fence leakage in the chat bubble), OFF → document byte-identical.
+  Panel visually clean — no removed-UI debris.
+- [ ] **Docs refresh (delegate)** — README still documents the removed
+  per-response action buttons, "55 unit tests" and "quick actions" in the
+  project structure; update it to the agent-loop UX and current counts.
+  Rider: add `.idea/` to `.gitignore`.
 
 ### Milestone: collaborative AI writing (after migration)
 

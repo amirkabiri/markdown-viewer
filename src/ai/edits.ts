@@ -4,9 +4,18 @@
 // test/ai-edits.test.ts); applyEdit touches the DOM (editor/i18n/confirm).
 
 import { editor } from '../state.js';
-import { t } from '../i18n.js';
+import { t, registerI18n } from '../i18n.js';
 import { BUILTIN_SYSTEM_PROMPT } from './providers/builtin.js';
 import type { ChatMessage } from './types.js';
+
+// The replace-document confirmation prompt is owned here — it is the only
+// i18n key this module needs (the panel's keys live in ai/index.ts).
+registerI18n({
+  aiReplaceDocConfirm: {
+    en: 'Replace the whole document with this text?',
+    fa: 'کل سند با این متن جایگزین شود؟',
+  },
+});
 
 /* ---------------- pure edit computation ---------------- */
 
@@ -88,10 +97,11 @@ export function applyEdit(mode: EditMode, text: string): boolean {
 
 /* ---------------- selection-aware chat prompt builder ---------------- */
 
-/** Soft cap for the context block (mirrors MAX_PROMPT_CHARS in index.ts). */
+/** Soft cap for the context block (agent.ts keeps the same cap for
+ *  read_document tool results). */
 const MAX_CONTEXT_CHARS = 12000;
 
-/** Pure: head+tail clip with an elision marker (same shape as index.ts clip). */
+/** Pure: head+tail clip with an elision marker (same shape as agent.ts clipToolResult). */
 function clipContext(text: string): string {
   if (text.length <= MAX_CONTEXT_CHARS) return text;
   const half = Math.floor(MAX_CONTEXT_CHARS / 2);
