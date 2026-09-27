@@ -1,108 +1,222 @@
-# Markdown Viewer
+# Qalam
 
-A **split-pane Markdown editor & viewer** for the web: write on one side, read a live preview on the other. 100% client-side, no build step — made for GitHub Pages.
+**قلم** — "pen"
 
-**بازکردن ویرایشگر:** [https://amirkabiri.github.io/markdown-viewer/](https://amirkabiri.github.io/markdown-viewer/)
+Collaborative Markdown editing where humans and AI write together — on-device AI (Gemini Nano) or your own OpenAI/Anthropic-compatible service. Persian/RTL-first, Mermaid diagrams, self-contained share links.
 
-<!-- The link works once GitHub Pages is enabled (Settings → Pages → branch: main, path: /). -->
+[![CI](https://github.com/amirkabiri/qalam/actions/workflows/ci.yml/badge.svg)](https://github.com/amirkabiri/qalam/actions/workflows/ci.yml) · **[Try it live →](https://amirkabiri.github.io/qalam/)**
+
+## Why Qalam
+
+Writing is collaborative — and Qalam treats the AI as a co-author with real write
+access to the document, not a chatbot bolted to the side. The assistant can stream
+edits directly into the text as it generates, and when you select a section and
+type an instruction it rewrites exactly that range. It runs either fully on-device
+(Gemini Nano via the browser's Prompt API — private, free, offline-capable) or
+against your own OpenAI-/Anthropic-compatible service with your token; tokens
+never leave your browser except to the endpoint you configured. There is no
+backend and no telemetry — the whole app is static files on GitHub Pages.
 
 ## Features
 
-- ✍️ **Split-pane editing** — half textarea, half live preview, with a draggable divider and editor-only / split / preview-only layouts
-- 🌍 **Bilingual UI (English / فارسی)** — one click toggles the whole interface, direction included
-- 🇮🇷 **First-class Persian & RTL** — the [Vazirmatn](https://github.com/rastikerdar/vazirmatn) font, per-paragraph direction auto-detection, mirrored layout via CSS logical properties, LTR-isolated inline code
-- 📊 **Mermaid diagrams** — flowcharts, sequence diagrams, pie charts… written in fenced ```` ```mermaid ```` blocks, in light & dark themes, with Persian labels supported
-- 🎨 **Light / dark theme**, remembered across visits
-- 🔍 **Syntax highlighting** for code blocks (highlight.js) with copy buttons
-- 🧭 **Auto table of contents** with scroll-spy, in a slide-over panel
-- 🔗 **Load from anywhere** — open a URL (GitHub `blob` links are converted to raw automatically), upload a file, drag & drop a `.md` anywhere, or paste text
-- 🗂 **Recent documents** + links inside documents ending in `.md` navigate inside the viewer
-- 🛡 **Safe rendering** — HTML in markdown is sanitized with DOMPurify
-- 📱 **Responsive** — panes stack on mobile; print styles output a clean preview-only page
+### Editor
 
-## Usage
+- **Split-pane live preview** — write on one side, read on the other, with a draggable divider (double-click resets) and editor-only / split / preview-only modes
+- **Scroll sync** between editor and preview
+- **Syntax highlighting** (highlight.js) with copy buttons; the code theme swaps with the app theme
+- **[Mermaid](https://mermaid.js.org) diagrams** in fenced ```` ```mermaid ```` blocks — light & dark themes, Persian labels supported
+- **Light / dark theme** remembered across visits; responsive layout; auto table of contents with scroll-spy; recent documents; word/char counts
 
-### Opening documents
+### AI co-author
 
-- **URL parameters**
-  - `?file=path/to/doc.md` — path relative to the site (e.g. [`?file=samples/sample-fa.md`](https://amirkabiri.github.io/markdown-viewer/?file=samples/sample-fa.md))
-  - `?url=<encoded-url>` — any absolute URL that allows CORS (`raw.githubusercontent.com` works)
-  - With no parameters, the repo's own `README.md` loads
-- **From the app** — press **Open** (or <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>O</kbd>) to load from a URL, a local file, or the clipboard
-- **Drag & drop** a `.md` file anywhere on the page
+- **Three providers** — built-in on-device Gemini Nano (Prompt API), or your own OpenAI-compatible / Anthropic-compatible endpoint
+- **Direct-edit streaming** — with the direct-edit toggle on, the assistant writes into the editor as it streams, and every edit preserves your native undo history
+- **Selection-aware chat** — select a section, type an instruction, and the rewrite streams back into exactly that range
+- **Per-response actions** — insert at cursor, append, replace selection, or replace the whole document (whole-document replacement asks for confirmation)
+- **Text-only rendering** — panel messages are plain text, and anything inserted into the document goes through the same sanitized preview pipeline as your typing
 
-### Writing
+### Persian & RTL
 
-| Syntax | Result |
+- The [Persian-tuned] **Vazirmatn** font ships for Persian text
+- **Per-paragraph direction auto-detection** — start a paragraph with Persian and it lays out RTL; a ⇄ button forces Auto → LTR → RTL for the whole document
+- **Mirrored bilingual UI** built on CSS logical properties — one click flips the entire interface EN ⇄ FA, direction included
+- **LTR-isolated inline code** so snippets stay readable inside RTL paragraphs
+- **Persian digits** in the FA interface (counts and numbers)
+- Honest AI-language caveats — see [Writing with the AI](#writing-with-the-ai)
+
+### Share
+
+- **Self-contained `#d=` links** — the whole document rides in the URL fragment, which browsers never send to any server
+- **Deflate + base64url** encoding, with a raw base64url fallback where `CompressionStream` is missing
+- **Capacity guardrails** — links over 30,000 characters warn, over 300,000 are refused
+
+### Engineering
+
+- **Strict TypeScript** on Vite; ESLint flat config; typecheck, lint, unit tests and build gate every push in CI
+- **55 Vitest unit tests** (share codec, stream chunking, provider parsers, settings repair) and **12 Playwright e2e runs** — 4 specs across Chromium, Firefox and WebKit — against the production build
+- **Content-Security-Policy** with `script-src 'self'` — no third-party scripts, ever
+- **No CDN code at runtime** — marked, DOMPurify, highlight.js and Mermaid are lockfile-pinned npm dependencies bundled by Vite (Mermaid is code-split and fetched only when a diagram renders); the only external fetch is the Vazirmatn font CSS
+
+## AI providers
+
+| Provider | Where it runs | You need | Notes |
+| --- | --- | --- | --- |
+| Built-in (Gemini Nano) | Fully on-device, in your browser | Chrome or Edge on desktop, HTTPS; one-time ~4 GB model download (the panel shows a download button with progress) | Prompt API (`LanguageModel`) — [docs](https://developer.chrome.com/docs/ai/prompt-api); makes no network calls |
+| OpenAI-compatible | The endpoint you configure | Base URL + model; token optional | `POST {baseUrl}/chat/completions` with a Bearer token — works with OpenRouter, llama.cpp server, vLLM, … |
+| Anthropic-compatible | The endpoint you configure | Base URL + model; token optional | `POST {baseUrl}/v1/messages` with `x-api-key`; sends `anthropic-dangerous-direct-browser-access: true` so direct browser calls pass CORS |
+
+**Configure:** open the assistant panel (sparkle button in the top bar) → expand
+**AI service** → pick a provider, fill in Base URL / Model / API token (token is
+optional) → **Save**. Settings persist in your browser's localStorage (`mv:ai`).
+
+**Privacy:** tokens live only in your browser's localStorage and are sent nowhere
+except the endpoint you configured — nothing is proxied, and there is no
+telemetry. The built-in provider is the default: the model runs entirely in your
+browser and the app makes zero network calls for it.
+
+## Writing with the AI
+
+1. Open the assistant panel and pick a provider (see [AI providers](#ai-providers)).
+2. **Direct edit** — with the direct-edit toggle on, chat responses stream straight
+   into the document. Every edit preserves native undo (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd>).
+3. **Selection-aware editing** — select text in the editor, type an instruction
+   ("make this formal", "turn this into a table"), and the assistant rewrites
+   exactly that selection.
+4. **Per-response actions** — every response offers Insert at cursor / Append /
+   Replace selection / Replace document (with confirmation for the whole document).
+
+**Persian note:** Gemini Nano's certified generation languages are English,
+Japanese, Spanish, German and French — Persian is not one of them, so on-device
+Persian output is unofficial quality. For Persian-heavy work, configure an
+external OpenAI-/Anthropic-compatible provider.
+
+## Share links
+
+Press **Share**: the current document is UTF-8 encoded, deflate-compressed,
+base64url-encoded into a self-contained link (`…/#d=D.…`) and copied straight
+to your clipboard. Because fragments are never sent to servers, the document
+never leaves the URL bar — opening the link anywhere is completely private.
+Decoding tolerates the full URL, the bare `d=…` payload, or a raw payload; the
+URL is never rewritten while you edit, so the link survives a refresh and stays
+re-shareable. Compression keeps typical documents to a few hundred URL
+characters; over 30,000 characters you get a warning, and over 300,000 the
+link is refused.
+
+## Opening documents
+
+| Method | Details |
 | --- | --- |
-| `# … ######` | Headings (they build the TOC) |
-| ```` ```mermaid ```` | Rendered diagram |
-| ```` ```js ```` | Highlighted code block |
-| `- [x] done` | Task list |
-| `> quote` | Styled blockquote |
+| Drag & drop | Drop a `.md` file anywhere on the page |
+| Open dialog | **Open** button or <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>O</kbd> — from a URL (GitHub `blob` links become raw automatically), a local file, or pasted text |
+| `?file=` | Path relative to the site, e.g. [the Persian sample](https://amirkabiri.github.io/qalam/?file=samples/sample-fa.md) |
+| `?url=` | Any absolute URL that allows CORS (`raw.githubusercontent.com` works) |
+| `#d=` | A self-contained share link — see [Share links](#share-links) |
+| Default | With no parameters, this repo's own `README.md` loads |
 
-Text direction is **auto-detected per paragraph** — start a paragraph with
-Persian and it lays out RTL; start with English and it stays LTR. The
-**⇄** button in the top bar forces Auto → LTR → RTL for the whole document.
+Recent documents stay in the sidebar, `.md` links inside documents navigate
+within the viewer, and input is capped at 10 MB.
 
-## Run locally
+## Development
 
-Requires [Node.js](https://nodejs.org) 20+ and [pnpm](https://pnpm.io):
+### Prerequisites
 
-```bash
-git clone https://github.com/amirkabiri/markdown-viewer.git
-cd markdown-viewer
-pnpm install
-pnpm dev        # dev server with HMR
-pnpm build      # production build into dist/
-pnpm preview    # serve the production build locally
+- Node.js ≥ 22.13 (enforced via `engines`)
+- pnpm 11 — `corepack enable` picks up the version pinned in `packageManager`
+
+### Commands
+
+| Command | What it does |
+| --- | --- |
+| `pnpm install` | Install dependencies |
+| `pnpm dev` | Vite dev server with HMR |
+| `pnpm build` | Production build into `dist/` |
+| `pnpm preview` | Serve the production build locally |
+| `pnpm typecheck` | `tsc --noEmit` |
+| `pnpm lint` | ESLint over the repo |
+| `pnpm test` | Vitest unit tests |
+| `pnpm test:e2e` | Playwright e2e suite |
+
+### Project structure
+
+Each `src/` module documents what it owns in a header comment:
+
+```text
+src/
+  main.ts        # entry: boot sequence, ?file=/?url=/#d= routing, AI-button wiring
+  state.ts       # mv:* localStorage store, validated app state, shared helpers, DOM refs
+  i18n.ts        # EN/FA dictionaries and language application
+  workspace.ts   # editor bindings, scroll sync, divider drag, pane modes, direction
+  markdown.ts    # render pipeline: marked + DOMPurify + highlight.js + Mermaid
+  documents.ts   # URL/file loading, recent documents, #d= share-hash routing
+  share.ts       # self-contained #d= share links (base64url + deflate)
+  ui.ts          # TOC + scroll spy, slide-over panel, dialogs, topbar, drag & drop
+  ai.ts          # shim re-exporting src/ai/ (frozen import paths)
+  ai/            # assistant panel + provider layer (panel UI, quick actions, routing)
+    providers/   # builtin (Prompt API), openai, anthropic SSE adapters
+    settings.ts  # validated mv:ai provider settings
+    chunk.ts     # pure streaming text helpers
+    ambient.ts   # ambient types for the Chrome built-in AI APIs
+test/            # Vitest unit tests (pure modules)
+e2e/             # Playwright specs
 ```
 
-## Deploy (GitHub Pages)
+### Testing notes
 
-GitHub Actions builds and deploys on every push to `main`; the Pages source must be set to **GitHub Actions** (Settings → Pages → Source: GitHub Actions). One-time setup, then open [https://amirkabiri.github.io/markdown-viewer/](https://amirkabiri.github.io/markdown-viewer/).
+Unit tests cover the pure modules: the share codec, stream chunk normalization,
+provider delta parsers and settings repair. The Playwright suite runs against a
+production build (`vite build` + `vite preview`) across Chromium, Firefox and
+WebKit. CI runs typecheck, lint, unit tests and build on every push and PR, plus
+the e2e job on `main`.
 
-## Tech stack
+## Deployment
 
-| Piece | Choice |
-| --- | --- |
-| Language | TypeScript (strict) |
-| Bundler / dev server | [Vite](https://vite.dev) |
-| Markdown parsing | [marked](https://github.com/markedjs/marked) |
-| Sanitizing | [DOMPurify](https://github.com/cure53/DOMPurify) |
-| Diagrams | [Mermaid](https://mermaid.js.org) |
-| Code highlighting | [highlight.js](https://highlightjs.org) |
-| Persian font | [Vazirmatn](https://github.com/rastikerdar/vazirmatn) |
-| Unit tests | [Vitest](https://vitest.dev) |
-| Linting | [ESLint](https://eslint.org) + typescript-eslint |
-| E2E tests | Playwright (planned) |
-| Package manager | [pnpm](https://pnpm.io) |
-
-The app is CDN-free: marked, DOMPurify, highlight.js and Mermaid are bundled by Vite from lockfile-pinned npm dependencies (Mermaid is code-split and only fetched when a diagram is rendered). Only the Vazirmatn font CSS still loads from jsDelivr.
-
-## فارسی / دربارهٔ پروژه
-
-**نمایشگر مارک‌داون** یک ویرایشگر و نمایشگر مارک‌داون دو بخشی برای وب است؛
-سمت چپ می‌نویسید و سمت راست پیش‌نمایش زنده می‌بینید. کاملاً سمت کاربر اجرا
-می‌شود و برای میزبانی در GitHub Pages ساخته شده است.
-
-- رابط کاربری دوزبانه (انگلیسی / فارسی) با یک کلیک
-- فونت وزیرمتن و تشخیص خودکار جهت هر پاراگراف
-- پشتیبانی کامل از نمودارهای **مرمید** (حتی با برچسب فارسی)
-- حالت روشن/تاریک، هایلایت کد، فهرست مطالب خودکار و سندهای اخیر
-- باز کردن سند از نشانی، بارگذاری فایل، کشیدن و رها کردن، یا چسباندن متن
-
-برای استفاده: فایل را روی صفحه رها کنید، یا از پارامتر `?file=` /
-`?url=` در نشانی استفاده کنید.
+Pushes to `main` are built and deployed to GitHub Pages by Actions. One-time
+setup: **Settings → Pages → Source: GitHub Actions**. The site lives at
+[https://amirkabiri.github.io/qalam/](https://amirkabiri.github.io/qalam/).
 
 ## Security
 
-- Markdown is rendered entirely client-side and sanitized with [DOMPurify](https://github.com/cure53/DOMPurify) before it is injected into the page.
-- Mermaid diagrams run with `securityLevel: 'strict'`.
-- All CDN dependencies are version-pinned and protected with Subresource Integrity (`integrity` + `crossorigin` attributes).
-- A Content-Security-Policy restricts script and style sources to `'self'` and the two CDNs (jsDelivr / cdnjs).
-- Documents loaded via `?url=` are fetched by your own browser, directly from the source host and without credentials — cross-origin reads require the host to allow CORS.
-- No server, no accounts, no telemetry: nothing you type or load ever leaves your browser.
+- Markdown is rendered entirely client-side and sanitized with DOMPurify before
+  injection; Mermaid runs with `securityLevel: 'strict'`.
+- AI panel messages are plain text — nothing is parsed as HTML — and text the AI
+  inserts into the editor flows through the same sanitized preview pipeline.
+- Document content is treated as a prompt-injection surface: the AI system prompt
+  instructs the model to ignore embedded instructions and follow only the user's
+  request.
+- Provider tokens are client-side only (localStorage `mv:ai`) and are sent
+  nowhere except the endpoint you configured.
+- Documents loaded via `?url=` are fetched by your own browser, directly from the
+  source host and without credentials — cross-origin reads require CORS.
+- No server, no accounts, no telemetry: nothing you type or load ever leaves your
+  browser (except to the AI endpoint you explicitly configured).
+
+## فارسی
+
+**قلم** یک ویرایشگر مارک‌داون دوپنجره‌ای برای وب است: یک سمت می‌نویسید و سمت
+دیگر پیش‌نمایش زنده می‌بینید — و هوش مصنوعی هم به‌عنوان هم‌نویس در کنار شماست.
+
+- دستیار هوشمند مستقیماً در سند می‌نویسد: پاسخ‌ها همزمان با تولید در ویرایشگر
+  جاری می‌شوند؛ بخشی را انتخاب کنید، دستور بدهید و همان بازه بازنویسی می‌شود.
+- هوش مصنوعی یا کاملاً روی دستگاه شما اجرا می‌شود (Gemini Nano در کروم/اج
+  دسکتاپ، بدون هیچ درخواست شبکه‌ای) یا به سرویس سازگار با OpenAI/Anthropic
+  خودتان وصل می‌شود؛ توکن شما فقط در مرورگر خودتان می‌ماند.
+- فارسی‌محور: فونت وزیرمتن، تشخیص خودکار جهت هر پاراگراف، رابط آینه‌ای دوزبانه
+  و اعداد فارسی.
+- نمودارهای مرمید، هایلایت کد، فهرست مطالب خودکار و حالت روشن/تاریک.
+- هم‌رسانی خودکفا با پیوند `#d=`: کل سند در fragment نشانی فشرده می‌شود و هرگز
+  برای سروری فرستاده نمی‌شود.
+- تولید فارسی با Gemini Nano غیررسمی است؛ برای کارهای فارسی‌محور، سرویس بیرونی
+  گزینهٔ بهتری است. ([امتحان کنید](https://amirkabiri.github.io/qalam/))
+- بدون سرور، بدون حساب کاربری، بدون تلمتری.
+
+## Contributing
+
+- Use pnpm (the lockfile is pinned via `packageManager`); run `pnpm typecheck`,
+  `pnpm lint` and `pnpm test` before pushing.
+- [tasks.md](tasks.md) is the single source of truth for pending work — pick a
+  task, and update the board in the same commit that delivers it.
+- Every `src/` module declares its ownership in a header comment; keep new code
+  within that contract.
 
 ## License
 
