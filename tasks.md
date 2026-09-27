@@ -101,15 +101,32 @@ sort. Implemented in the React rewrite only (the vanilla app is frozen).
   with autosave (per-change trailing debounce + flush on pagehide/visibility)
   and onChange subscriptions for live sidebar updates; one-time migration
   from legacy `mv:doc`/`mv:recent` localStorage. Tests with fake-indexeddb.
+  **v2 amendment (multi-tab, stakeholder edge case):** `revision` field
+  (driver-owned monotonic bump on every put); `sync.ts` tab hub
+  (BroadcastChannel + clientId echo suppression + focus/visibility
+  reconciliation backstop); per-document session locks via Web Locks
+  (`openDocument` → `edit` | `readonly` + `takeover()`; readonly sessions
+  cannot save; saves serialized under the lock); stolen-session policy =
+  auto-save dirty buffer as a copy record (never lose text); lock adapter
+  injectable for node tests; graceful no-locks fallback. Two-tab integration
+  tests over one fake-indexeddb + real BroadcastChannel.
 - [ ] **Agent R8 — document management UI** (after R4 + R7) — sidebar lists
   all persisted documents: create, select (loads into editor), remove (with
   confirm), drag-to-reorder (persisted via `reorder`); autosave wiring in the
   editor (every change → repository save, flush on hide); documents opened
   via `?file=`/`?url=`/`#d=`/upload become records (source metadata); active
-  document pointer; component tests + e2e for the sidebar flows.
+  document pointer; component tests + e2e for the sidebar flows. Multi-tab
+  UI: readonly banner + "Take over" action on readonly sessions, stolen-
+  session toast (copy created), live sidebar updates from remote-change
+  events; a **two-tab e2e spec** (edit in tab A appears in tab B; takeover
+  flow).
 - [ ] **Acceptance addition** — multi-document persistence verified in
   browser: reload keeps content (autosave), order persists, legacy
-  migration runs once, removal confirm, EN+FA.
+  migration runs once, removal confirm, EN+FA. **Multi-tab scenarios:**
+  two tabs editing different docs both autosave; same doc in two tabs →
+  one edits, one is read-only until takeover; changes in one tab appear in
+  the other without reload; removing a doc in one tab reflects in the other;
+  no data loss in any of these paths.
 - [ ] **Agent R6 — a11y + shortcuts pass** (after R4+R5) — complete keyboard
   map (existing: Ctrl/⌘+O, Esc; plus documented bindings for panel, pane
   modes, direction, share), roving focus + focus traps on overlays, aria
