@@ -1,10 +1,11 @@
-// Module: ui — TOC + scroll spy, slide-over panel, open dialog, topbar handlers, drag & drop. Owner of bindUI/bindDrop/buildToc/updateSpy/applyTheme.
+// Module: ui — TOC + scroll spy, slide-over panel, open + share dialogs, topbar handlers, drag & drop. Owner of bindUI/bindDrop/buildToc/updateSpy/applyTheme and the share dialog.
 import { $, $$, state, store, routeState, editor, preview, previewScroll, panel, scrim, openDialog, panelEls, MAX_INPUT_BYTES, toast } from './state.js';
 import type { PaneMode } from './state.js';
 import { t, setLang } from './i18n.js';
 import { renderPreview } from './markdown.js';
 import { setDoc, loadUrl, loadFile } from './documents.js';
 import { setPaneMode, applyDir } from './workspace.js';
+import { shareEncode } from './share.js';
 import hljsLightCss from '../style/hljs/github.css?raw';
 import hljsDarkCss from '../style/hljs/github-dark.css?raw';
 
@@ -95,6 +96,18 @@ export function activateTab(name: string): void {
   $('#panel-paste')!.hidden = name !== 'paste';
 }
 
+/* ---------------- share dialog ---------------- */
+
+function openShareDialog(): void {
+  const sourceBtn = $<HTMLButtonElement>('#share-copy-source')!;
+  const hasSource = !!state.doc?.url;
+  sourceBtn.disabled = !hasSource;
+  sourceBtn.setAttribute('aria-disabled', String(!hasSource));
+  $<HTMLElement>('#share-chars')!.textContent =
+    editor.value.length.toLocaleString(state.lang === 'fa' ? 'fa-IR' : 'en-US') + ' ' + t('chars');
+  $<HTMLDialogElement>('#share-dialog')!.showModal();
+}
+
 export function readAndLoad(file: File | null): void {
   if (!file) return;
   if (file.size > MAX_INPUT_BYTES) { toast(t('tooLarge'), 'error'); return; }
@@ -159,11 +172,34 @@ export function bindUI(): void {
     editor.focus();
   });
 
-  $('#share-btn')!.addEventListener('click', async () => {
+  $('#share-btn')!.addEventListener('click', openShareDialog);
+
+  $('#share-close-btn')!.addEventListener('click', () => $<HTMLDialogElement>('#share-dialog')!.close());
+
+  $('#share-copy-content')!.addEventListener('click', async () => {
+    const dialog = $<HTMLDialogElement>('#share-dialog')!;
+    const result = await shareEncode(editor.value);
+    if (!result.ok) {
+      toast(t('linkTooLarge'), 'error');
+      dialog.close();
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(location.href);
+      await navigator.clipboard.writeText(result.url);
       toast(t('copied'), 'ok');
     } catch { toast(t('copied'), 'error'); }
+    if (result.warn) toast(t('linkWarn'));
+    dialog.close();
+  });
+
+  $('#share-copy-source')!.addEventListener('click', async () => {
+    const url = state.doc?.url;
+    if (!url) return; // button is disabled in this state anyway
+    try {
+      await navigator.clipboard.writeText(url);
+      toast(t('copied'), 'ok');
+    } catch { toast(t('copied'), 'error'); }
+    $<HTMLDialogElement>('#share-dialog')!.close();
   });
 
   $('#dir-btn')!.addEventListener('click', () => {

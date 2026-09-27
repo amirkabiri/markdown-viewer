@@ -58,6 +58,10 @@
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
     </button>
 
+    <button id="ai-btn" class="icon-btn" data-i18n-title="aiButton" aria-label="AI assistant">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2z"/></svg>
+    </button>
+
     <button id="lang-btn" class="btn ghost lang-btn" data-i18n-title="toggleLang" aria-label="Switch language">فا</button>
 
     <button id="theme-btn" class="icon-btn" data-i18n-title="toggleTheme" aria-label="Toggle theme">
@@ -163,6 +167,22 @@
     <div class="tab-panel" id="panel-paste" hidden>
       <textarea id="paste-input" rows="8" placeholder="# Paste Markdown here…" data-i18n-ph="pastePlaceholder"></textarea>
       <button id="paste-load-btn" class="btn primary" data-i18n="render">Insert &amp; render</button>
+    </div>
+  </dialog>
+
+  <!-- ======= Share dialog ======= -->
+  <dialog id="share-dialog">
+    <div class="dialog-head">
+      <h2 data-i18n="shareTitle">Share document</h2>
+      <button id="share-close-btn" class="icon-btn" aria-label="Close" data-i18n-title="close">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="tab-panel">
+      <button id="share-copy-content" class="btn primary" type="button" data-i18n="copyContentLink">Copy content link</button>
+      <button id="share-copy-source" class="btn ghost" type="button" data-i18n="copySourceLink" disabled aria-disabled="true">Copy source link</button>
+      <p id="share-chars" class="hint"></p>
     </div>
   </dialog>
 

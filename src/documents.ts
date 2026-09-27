@@ -1,8 +1,9 @@
-// Module: documents — URL/file loading, recents. Owner of loadUrl/setDoc/recent logic.
+// Module: documents — URL/file loading, recents, #d= share-hash routing. Owner of loadUrl/setDoc/recent logic and the #d= share-hash routing.
 import { $, state, store, routeState, editor, previewScroll, panelEls, MAX_INPUT_BYTES, updateCounts, toast } from './state.js';
 import { t, registerI18n } from './i18n.js';
 import { renderPreview, scrollToHash } from './markdown.js';
 import { closePanel, showLoading, hideLoading } from './ui.js';
+import { shareDecode } from './share.js';
 
 registerI18n({
   loadError: { en: 'Could not load document', fa: 'بارگیری سند ممکن نشد' },
@@ -84,7 +85,7 @@ export async function loadUrl(rawUrl: string, { push = true, fileParam = null }:
     if (push) {
       history.pushState(null, '', location.pathname + (routeState.lastParams ? '?' + routeState.lastParams : ''));
     }
-    scrollToHash();
+    scrollToHashSafe();
   }
   if (!ok && !state.doc) loadWelcome();
   return ok;
@@ -96,6 +97,35 @@ export const loadFile = (path: string, opts: LoadOptions = {}): Promise<boolean>
 export function loadWelcome(): void {
   const md = $('#welcome-md')!.textContent ?? '';
   setDoc({ name: t('welcome'), text: md, baseUrl: location.href });
+}
+
+/* ---------------- #d= share links ---------------- */
+
+/** True when the location hash carries a self-contained share payload (`#d=…`). */
+export function hasShareHash(): boolean {
+  return location.hash.startsWith('#d=');
+}
+
+/**
+ * Load the document encoded in the `#d=` fragment. Query params take precedence
+ * (callers check them first); a plain `#heading` hash never reaches this. The
+ * URL is deliberately NOT rewritten — the fragment must survive a refresh and
+ * stay re-shareable. Falls back to the embedded welcome doc on a bad payload.
+ * @returns true when a share hash was present (decoded or not)
+ */
+export async function loadShared(): Promise<boolean> {
+  if (!hasShareHash()) return false;
+  const decoded = await shareDecode(location.hash);
+  if (decoded) setDoc({ name: t('sharedDoc'), text: decoded.text });
+  else loadWelcome();
+  routeState.lastParams = paramsString(); // mark the (empty) query as routed so hash-only popstates don't reload
+  return true;
+}
+
+/** scrollToHash, skipping `#d=…` fragments — never querySelector a share payload (it is not a real selector). */
+function scrollToHashSafe(): void {
+  if (hasShareHash()) return;
+  scrollToHash();
 }
 
 /* ---------------- recent documents ---------------- */
