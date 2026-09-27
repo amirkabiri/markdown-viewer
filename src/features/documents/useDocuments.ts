@@ -17,7 +17,7 @@ import type { RecentItem } from '../../lib/documents';
 import { shareDecode } from '../../lib/share';
 import { MAX_INPUT_BYTES, store, type Doc } from '../../lib/store';
 
-import { WELCOME_MD } from './welcome';
+import WELCOME_MD from './welcome';
 
 export type ToastKind = 'info' | 'ok' | 'error';
 

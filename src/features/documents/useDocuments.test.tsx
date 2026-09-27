@@ -10,7 +10,7 @@ import {
 } from 'vitest';
 
 import { I18nProvider } from '../../app/i18n';
-import { WELCOME_MD } from './welcome';
+import WELCOME_MD from './welcome';
 import { useDocuments } from './useDocuments';
 import type { DocumentsController, DocumentsDeps } from './useDocuments';
 
