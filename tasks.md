@@ -74,15 +74,25 @@ never auto-download), (3) tool calls the agent made must be visible in chat.
   Frozen contract: exports `EditorApi` (stable object: getText/getSelection/
   hasSelection/applyEdit(mode,text,pinnedRange?)) from
   `src/features/editor/api.ts` + `I18nProvider`/`useT` from `src/app/i18n.tsx`.
-- [~] **Agent R5 — AI parity + UX requirements** — `<AiPanel/>` feature
-  (self-contained; props `editor: EditorApi, t, lang`; mounted at
-  integration): provider settings, builtin availability state machine,
-  **download consent AlertDialog** (never auto-download; explicit consent →
-  progress), **first-send loading states** (model warming/connecting →
-  spinner + status, never silent), **visible per-message tool-call activity**
-  (tool + mode + running/ok/refused; minimal backwards-compatible agent-event
-  extension in `src/lib/ai/agent.ts` allowed — args on tool events + tests).
-  Component tests with house fakes; no e2e, no config edits.
+- [x] **Agent R5 — AI parity + UX requirements** — DONE, scope-verified by
+  the lead (107 tests green in `src/features/ai` + `src/lib/ai`). Mounted at
+  integration as `<AiPanel editor={editorApi} t={t} lang={lang}/>` (frozen
+  props; panel is open-while-mounted — trigger wiring needs conditional
+  mount or a controlled `open`/`onOpenChange`). All 3 UX requirements
+  delivered + tested: (1) labeled loading state from send → first streamed
+  event (builtin create() cold start covered; external SSE connect covered),
+  input disabled while loading; (2) ~4 GB download consent — non-dismissable
+  alert dialog on send while `downloadable`, `create()` never called before
+  explicit Download (user activation), live progress, queued message
+  proceeds on success, draft preserved + honest explainer on "Not now";
+  (3) per-message persistent tool-activity list (tool, mode label,
+  running → OK/Refused via the new `ok` event field, `aria-live`).
+  Deviations (requirement-driven): RAC 1.21.1 has no `AlertDialog` export —
+  `ModalOverlay(isDismissable=false)` + `Dialog role="alertdialog"` used
+  instead (identical semantics; R2's doc corrected here); feature-local
+  i18n labels in `src/features/ai/labels.ts`; in-panel RAC ToastRegion +
+  react-stately ToastQueue until app-root toast plumbing exists (then point
+  app ToastRegion at `aiToastQueue`).
 
 ### Milestone: persistence + multi-document management (current, on `react-rewrite`)
 
