@@ -54,6 +54,12 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
 - [x] **Docs refresh (delegate)** — DONE: README agent-loop refresh
   (tool-editing UX, 96 unit tests, `ai/agent.ts` in the project structure)
   + `.idea/` .gitignore rider.
+- [x] **Agent H1 — CI hotfix** — DONE (`53e7208`): the e2e job's transitional
+  `if: hashFiles(...)` was invalid in a job-level condition, so GitHub
+  rejected the whole workflow file at parse — every ci.yml run in history
+  had failed with zero jobs, hidden behind the always-green deploy workflow.
+  Gate removed; first real CI execution: quality + e2e jobs green alongside
+  the Pages deploy.
 
 ### Milestone: collaborative AI writing (after migration)
 
