@@ -120,6 +120,18 @@ sort. Implemented in the React rewrite only (the vanilla app is frozen).
   auto-save dirty buffer as a copy record (never lose text); lock adapter
   injectable for node tests; graceful no-locks fallback. Two-tab integration
   tests over one fake-indexeddb + real BroadcastChannel.
+  **DONE, verified by the lead (333/333 repo-wide at HEAD):** v2 contract
+  landed with documented additive deviations (steal returns the acquisition;
+  stolen event carries `copyId: null` when the buffer was clean;
+  `saveContent` returns `false` for readonly/unknown; sessionless saves are
+  the v1 single-tab path). Migration finding: the vanilla app never
+  persisted the current document (runtime memo) and `mv:recent` holds no
+  content — migration carries recents as URL-sourced placeholders only
+  (documented limitation, no silent re-fetch). `FILE_SYSTEM_ACCESS.md`
+  specifies the future disk driver behind the same interface. R8 integration:
+  barrel import → `createDefaultDriver()` + `createDocumentRepository` with
+  one `TabSyncHub` + lock adapter per tab; `openDocument(id)` →
+  edit/readonly session + `takeover()`; run migration once after `init()`.
 - [ ] **Agent R8 — document management UI** (after R4 + R7) — sidebar lists
   all persisted documents: create, select (loads into editor), remove (with
   confirm), drag-to-reorder (persisted via `reorder`); autosave wiring in the
