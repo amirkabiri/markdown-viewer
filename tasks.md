@@ -83,6 +83,33 @@ never auto-download), (3) tool calls the agent made must be visible in chat.
   (tool + mode + running/ok/refused; minimal backwards-compatible agent-event
   extension in `src/lib/ai/agent.ts` allowed — args on tool events + tests).
   Component tests with house fakes; no e2e, no config edits.
+
+### Milestone: persistence + multi-document management (current, on `react-rewrite`)
+
+Stakeholder request: every document change persisted; IndexedDB for now;
+architecture flexible for a future File System Access driver (browser disk
+write permission); sidebar document management — create, select, remove,
+sort. Implemented in the React rewrite only (the vanilla app is frozen).
+
+- [~] **Agent R7 — persistence architecture (`src/lib/persistence/`)** —
+  driver interface `PersistenceDriver` (init/list/get/put/delete/reorder)
+  with `DocumentRecord` (id, name, content, createdAt, updatedAt, sortIndex,
+  optional source metadata); `createIndexedDbDriver` (raw IndexedDB, no
+  runtime deps, injectable factory for tests) + `createMemoryDriver` (fakes
+  + graceful fallback when IDB is unavailable) + documented (not implemented)
+  File System Access driver plan behind the same interface; repository layer
+  with autosave (per-change trailing debounce + flush on pagehide/visibility)
+  and onChange subscriptions for live sidebar updates; one-time migration
+  from legacy `mv:doc`/`mv:recent` localStorage. Tests with fake-indexeddb.
+- [ ] **Agent R8 — document management UI** (after R4 + R7) — sidebar lists
+  all persisted documents: create, select (loads into editor), remove (with
+  confirm), drag-to-reorder (persisted via `reorder`); autosave wiring in the
+  editor (every change → repository save, flush on hide); documents opened
+  via `?file=`/`?url=`/`#d=`/upload become records (source metadata); active
+  document pointer; component tests + e2e for the sidebar flows.
+- [ ] **Acceptance addition** — multi-document persistence verified in
+  browser: reload keeps content (autosave), order persists, legacy
+  migration runs once, removal confirm, EN+FA.
 - [ ] **Agent R6 — a11y + shortcuts pass** (after R4+R5) — complete keyboard
   map (existing: Ctrl/⌘+O, Esc; plus documented bindings for panel, pane
   modes, direction, share), roving focus + focus traps on overlays, aria
