@@ -2,35 +2,19 @@
 <html lang="en" dir="ltr" data-theme="light">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src https://cdn.jsdelivr.net; img-src * data:; media-src * data:; connect-src *; base-uri 'none'; form-action 'none'; object-src 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Markdown Viewer</title>
   <meta name="description" content="A bilingual (English / فارسی) split-pane markdown editor & viewer with full RTL support and Mermaid diagrams. Hosted on GitHub Pages.">
   <meta name="theme-color" content="#0969da">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230969da'/%3E%3Cpath d='M14 72V28h11l11 15 11-15h11v44H47V47L36 62 25 47v25zM69 28h10l14 19V28h9v44H92L78 53v19H69z' fill='white'/%3E%3C/svg%3E">
 
-  <script>
-    /* Apply saved theme/language before first paint to avoid flashing */
-    (function () {
-      try {
-        var t = JSON.parse(localStorage.getItem('mv:theme') || 'null');
-        if (t !== 'light' && t !== 'dark') {
-          t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        }
-        document.documentElement.dataset.theme = t;
-        var l = JSON.parse(localStorage.getItem('mv:lang') || 'null');
-        if (l !== 'fa' && l !== 'en') {
-          l = (navigator.language || '').toLowerCase().indexOf('fa') === 0 ? 'fa' : 'en';
-        }
-        document.documentElement.lang = l;
-        document.documentElement.dir = l === 'fa' ? 'rtl' : 'ltr';
-      } catch (e) { /* ignore */ }
-    })();
-  </script>
+  <script src="boot.js"></script>
 
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vazirmatn@33.0.3/Vazirmatn-font-face.css">
-  <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vazirmatn@33.0.3/Vazirmatn-font-face.css" crossorigin="anonymous" integrity="sha384-Msg4vA+dMlGceTVAySThtI+13Iz0xL9HBixehPxtwyz69HyraW1QWhcuiIqRF9Rs">
+  <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" crossorigin="anonymous" integrity="sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -227,10 +211,10 @@ flowchart LR
   <noscript><p style="padding:2rem;text-align:center">This viewer requires JavaScript / این نمایشگر به جاوااسکریپت نیاز دارد.</p></noscript>
 
   <!-- ======= Libraries (CDN) ======= -->
-  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" crossorigin="anonymous" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js" crossorigin="anonymous" integrity="sha384-a7SzOxErzJ3ZpQz0zJ32d67dSitNzPcbfybc/ykU9KJhMgZkwqfSxlhhdJRS+XGL"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" crossorigin="anonymous" integrity="sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js" crossorigin="anonymous" integrity="sha384-EOXBFmc3gx5mb+vn0vPvvGqACToJD24hhacX5Yx+8NUUQrHIle/Qi5Bg9o3zKwW2"></script>
   <script src="app.js"></script>
 </body>
 </html>

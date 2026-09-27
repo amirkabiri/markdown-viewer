@@ -95,6 +95,15 @@ All libraries load from CDNs (jsDelivr / cdnjs) — there is zero build step.
 برای استفاده: فایل را روی صفحه رها کنید، یا از پارامتر `?file=` /
 `?url=` در نشانی استفاده کنید.
 
+## Security
+
+- Markdown is rendered entirely client-side and sanitized with [DOMPurify](https://github.com/cure53/DOMPurify) before it is injected into the page.
+- Mermaid diagrams run with `securityLevel: 'strict'`.
+- All CDN dependencies are version-pinned and protected with Subresource Integrity (`integrity` + `crossorigin` attributes).
+- A Content-Security-Policy restricts script and style sources to `'self'` and the two CDNs (jsDelivr / cdnjs).
+- Documents loaded via `?url=` are fetched by your own browser, directly from the source host and without credentials — cross-origin reads require the host to allow CORS.
+- No server, no accounts, no telemetry: nothing you type or load ever leaves your browser.
+
 ## License
 
 [MIT](LICENSE) © Amir Kabiri

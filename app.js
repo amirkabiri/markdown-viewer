@@ -47,6 +47,7 @@ const I18N = {
     copyCode: 'Copy',
     copiedCode: 'Copied!',
     loadError: 'Could not load document',
+    tooLarge: 'Document is too large (limit 10 MB)',
     mermaidError: 'Mermaid diagram error',
     pastedDoc: 'Pasted document',
     unnamedDoc: 'Untitled',
@@ -94,6 +95,7 @@ const I18N = {
     copyCode: 'کپی',
     copiedCode: 'کپی شد!',
     loadError: 'بارگیری سند ممکن نشد',
+    tooLarge: 'حجم سند بیش از حد مجاز است (حداکثر ۱۰ مگابایت)',
     mermaidError: 'خطا در نمودار مرمید',
     pastedDoc: 'سند جای‌گذاری‌شده',
     unnamedDoc: 'بی‌نام',
@@ -107,6 +109,9 @@ const I18N = {
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
+
+/* Hard cap on any document entering the app (10 MB) */
+const MAX_INPUT_BYTES = 10 * 1024 * 1024;
 
 const store = {
   get(k, d) {
@@ -146,11 +151,16 @@ const slugify = (s) =>
 
 /* ---------------- state & elements ---------------- */
 
+/** Stored preferences come from JSON.parse of localStorage — only accept known values. */
+const enumOr = (v, allowed, d) => (allowed.includes(v) ? v : d);
+
 const state = {
-  lang: store.get('lang', (navigator.language || '').toLowerCase().startsWith('fa') ? 'fa' : 'en'),
-  theme: store.get('theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
-  dir: store.get('dir', 'auto'),            // content direction: auto | ltr | rtl
-  mode: store.get('mode', 'split'),         // editor | split | preview
+  lang: enumOr(store.get('lang', null), ['fa', 'en'],
+    (navigator.language || '').toLowerCase().startsWith('fa') ? 'fa' : 'en'),
+  theme: enumOr(store.get('theme', null), ['light', 'dark'],
+    matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
+  dir: enumOr(store.get('dir', null), ['auto', 'ltr', 'rtl'], 'auto'),            // content direction: auto | ltr | rtl
+  mode: enumOr(store.get('mode', null), ['editor', 'split', 'preview'], 'split'), // editor | split | preview
   doc: null,                                // {name, text, url, baseUrl}
   renderId: 0,
 };
@@ -163,6 +173,15 @@ const divider = $('#divider');
 const panel = $('#panel');
 const scrim = $('#scrim');
 const openDialog = $('#open-dialog');
+
+/* Sidebar refs captured once at boot, before untrusted markdown is injected
+   (a document containing e.g. <div id="toc"> would otherwise shadow them). */
+const panelEls = {
+  tocSection: $('#toc-section'),
+  toc: $('#toc'),
+  recentSection: $('#recent-section'),
+  recentList: $('#recent-list'),
+};
 
 const BLOCK_SEL = 'p,h1,h2,h3,h4,h5,h6,li,td,th,figcaption,dd,dt,summary,blockquote';
 
@@ -190,12 +209,19 @@ function applyLang() {
   updateCounts();
 }
 
+/* highlight.js stylesheets per theme, with matching SRI hashes */
+const HLJS_STYLES = {
+  light: { href: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css', integrity: 'sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L' },
+  dark:  { href: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css', integrity: 'sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH' },
+};
+
 function applyTheme() {
   document.documentElement.dataset.theme = state.theme;
   $('meta[name="theme-color"]').content = state.theme === 'dark' ? '#0d1117' : '#0969da';
   const link = $('#hljs-theme');
-  const v = '11.9.0';
-  link.href = `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/${v}/styles/${state.theme === 'dark' ? 'github-dark' : 'github'}.min.css`;
+  const style = HLJS_STYLES[state.theme] || HLJS_STYLES.light;
+  link.href = style.href;
+  link.integrity = style.integrity;
 }
 
 function applyDir() {
@@ -221,6 +247,15 @@ async function renderPreview() {
   clearTimeout(renderTimer);
   const id = ++state.renderId;
   const src = editor.value.replace(/\r\n?/g, '\n');
+
+  if (new TextEncoder().encode(src).length > MAX_INPUT_BYTES) {
+    preview.innerHTML = '';
+    const note = document.createElement('div');
+    note.className = 'error-note';
+    note.textContent = t('tooLarge');
+    preview.appendChild(note);
+    return;
+  }
 
   if (!window.marked || !window.DOMPurify) {
     preview.textContent = src;
@@ -362,8 +397,8 @@ function attachCopyButton(pre) {
 /* ---------------- table of contents + scroll spy ---------------- */
 
 function buildToc(headings) {
-  const toc = $('#toc');
-  const section = $('#toc-section');
+  const toc = panelEls.toc;
+  const section = panelEls.tocSection;
   if (!headings.length) {
     section.hidden = true;
     toc.innerHTML = '';
@@ -463,6 +498,7 @@ async function loadUrl(rawUrl, { push = true, fileParam = null } = {}) {
   let ok = false;
   try {
     const text = await fetchText(target);
+    if (new TextEncoder().encode(text).length > MAX_INPUT_BYTES) throw new Error(t('tooLarge'));
     await setDoc({ name: fileParam ? prettyName(fileParam) : prettyName(target), text, url: target, baseUrl: target });
     ok = true;
   } catch (err) {
@@ -490,7 +526,12 @@ function loadWelcome() {
 
 function scrollToHash() {
   if (!location.hash) return;
-  const el = preview.querySelector(decodeURIComponent(location.hash));
+  let el = null;
+  try {
+    el = preview.querySelector(decodeURIComponent(location.hash));
+  } catch {
+    el = document.getElementById(location.hash.slice(1));
+  }
   if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
 }
 
@@ -505,8 +546,8 @@ function addRecent(item) {
 
 function renderRecent() {
   const list = store.get('recent', []);
-  $('#recent-section').hidden = !list.length;
-  const holder = $('#recent-list');
+  panelEls.recentSection.hidden = !list.length;
+  const holder = panelEls.recentList;
   holder.innerHTML = '';
   list.forEach((r) => {
     const a = document.createElement('a');
@@ -632,6 +673,7 @@ function activateTab(name) {
 
 function readAndLoad(file) {
   if (!file) return;
+  if (file.size > MAX_INPUT_BYTES) { toast(t('tooLarge'), 'error'); return; }
   file.text().then((text) => {
     setDoc({ name: file.name.replace(/\.[^.]+$/, ''), text });
     history.pushState(null, '', location.pathname);
@@ -668,6 +710,7 @@ function bindUI() {
   $('#paste-load-btn').addEventListener('click', () => {
     const text = $('#paste-input').value;
     if (!text.trim()) { toast(t('loadError'), 'error'); return; }
+    if (new TextEncoder().encode(text).length > MAX_INPUT_BYTES) { toast(t('tooLarge'), 'error'); return; }
     setDoc({ name: t('pastedDoc'), text });
     history.pushState(null, '', location.pathname);
     lastParams = null;
