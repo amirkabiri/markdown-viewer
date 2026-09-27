@@ -22,9 +22,9 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
   production build (`pnpm` 11.3 pinned, strict tsconfig, 9 modules in `src/`,
   mermaid code-split, hljs themes vendored w/ style-swap, boot.js in `public/`,
   site docs copied to dist, 35 vitest tests green)
-- [ ] **Agent P — Playwright e2e** — config + cross-engine smoke spec
-  (chromium/firefox/webkit: app boots, markdown renders, Mermaid svg, no console
-  errors), unblocks the gated CI e2e job.
+  - [x] **Agent P — Playwright e2e** — DONE, 12 tests green on
+    chromium/firefox/webkit (3 consecutive runs): boot/render/Mermaid smoke,
+    theme persistence, live typing; e2e CI job auto-activates now
 - [ ] **Commit T2's workflows** (verify YAML; they activate once T1's scripts exist)
 
 ### Milestone: collaborative AI writing (after migration)
