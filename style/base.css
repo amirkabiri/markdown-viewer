@@ -1,0 +1,326 @@
+/* ============================================================
+   Markdown Viewer — base chrome
+   Variables, reset, scrollbars, focus, topbar, buttons,
+   segmented control, workspace/panes/divider/statusbar,
+   theme icons, motion preferences
+   ============================================================ */
+
+:root {
+  --bg: #f6f8fa;
+  --bg-elev: #ffffff;
+  --bg-subtle: #eef1f4;
+  --text: #1f2328;
+  --text-muted: #59636e;
+  --border: #d9dee3;
+  --border-strong: #c7ced6;
+  --accent: #0969da;
+  --accent-soft: rgba(9, 105, 218, 0.12);
+  --danger: #cf222e;
+  --ok: #1a7f37;
+  --code-bg: #eff1f3;
+  --pre-bg: #f6f8fa;
+  --quote-bg: rgba(9, 105, 218, 0.05);
+  --shadow: 0 8px 24px rgba(140, 149, 159, 0.22);
+  --shadow-sm: 0 1px 2px rgba(31, 35, 40, 0.08);
+  --header-h: 52px;
+  --pane-head-h: 38px;
+  --radius: 10px;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  /* Latin text uses the system stack, Persian/Arabic glyphs fall through to Vazirmatn */
+  --sans: "Vazirmatn", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+[data-theme="dark"] {
+  --bg: #0d1117;
+  --bg-elev: #161b22;
+  --bg-subtle: #21262d;
+  --text: #e6edf3;
+  --text-muted: #8d96a0;
+  --border: #30363d;
+  --border-strong: #3d444d;
+  --accent: #4493f8;
+  --accent-soft: rgba(68, 147, 248, 0.18);
+  --danger: #f85149;
+  --ok: #3fb950;
+  --code-bg: rgba(110, 118, 129, 0.25);
+  --pre-bg: #161b22;
+  --quote-bg: rgba(68, 147, 248, 0.07);
+  --shadow: 0 8px 24px rgba(1, 4, 9, 0.65);
+  --shadow-sm: 0 1px 2px rgba(1, 4, 9, 0.5);
+}
+
+* { box-sizing: border-box; }
+
+/* The hidden attribute must always win over component display rules */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 15px;
+  color: var(--text);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+::selection { background: var(--accent-soft); }
+
+button { font-family: inherit; }
+
+svg { flex-shrink: 0; }
+
+/* Scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ================= Top bar ================= */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--header-h);
+  padding-inline: 10px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--bg-elev) 85%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 60;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 15.5px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.brand svg { color: var(--accent); }
+.brand:hover { background: var(--bg-subtle); }
+
+.spacer { flex: 1; }
+
+/* Buttons */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:hover { background: var(--bg-subtle); color: var(--text); }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding-inline: 13px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn:hover { background: var(--bg-subtle); }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
+.btn.ghost { background: transparent; }
+
+.lang-btn { min-width: 44px; justify-content: center; font-weight: 700; }
+
+/* Segmented pane-mode control */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-subtle);
+  border-radius: 9px;
+}
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.segmented button:hover { color: var(--text); }
+.segmented button.active {
+  background: var(--bg-elev);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ================= Workspace ================= */
+
+.workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.editor-pane { flex: 0 0 var(--split, 50%); }
+
+.preview-pane { flex: 1; }
+
+.pane-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--pane-head-h);
+  padding-inline: 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+
+.pane-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.pane:focus-within .pane-label { color: var(--accent); }
+
+.doc-name {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: plaintext;
+}
+
+/* --- Editor --- */
+
+#editor {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  resize: none;
+  outline: none;
+  padding: 20px 22px;
+  background: var(--bg-elev);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Vazirmatn", monospace;
+  font-size: 14.5px;
+  line-height: 1.95;
+  tab-size: 4;
+  caret-color: var(--accent);
+}
+#editor::placeholder { color: var(--text-muted); opacity: 0.7; }
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding-inline: 14px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+.statusbar .dot { opacity: 0.6; }
+
+/* --- Divider --- */
+
+#divider {
+  flex: 0 0 7px;
+  cursor: col-resize;
+  position: relative;
+  touch-action: none;
+  background: var(--bg);
+}
+#divider::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 3px;
+  width: 1px;
+  background: var(--border);
+  transition: background 0.15s, width 0.15s;
+}
+#divider:hover::after,
+#divider.dragging::after {
+  width: 3px;
+  inset-inline-start: 2px;
+  background: var(--accent);
+}
+
+/* --- Preview --- */
+
+.preview-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg);
+}
+
+#content {
+  max-width: 860px;
+  margin-inline: auto;
+  padding: 28px 36px 96px;
+}
+
+/* ================= Theme icons ================= */
+[data-theme="light"] .icon-sun { display: none; }
+[data-theme="dark"] .icon-moon { display: none; }
+
+/* ================= Motion preferences ================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

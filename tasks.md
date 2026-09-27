@@ -14,14 +14,14 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
 
 ## P0 — Critical path (in flight)
 
-- [~] **Modular refactor** — split `app.js` into ES modules (`js/i18n.js`, `js/state.js`,
-  `js/markdown.js`, `js/documents.js`, `js/workspace.js`, `js/ui.js`, `js/main.js`),
-  split `style.css` into `style/base.css` + `markdown.css` + `ui.css`, add
-  `registerI18n()` so modules own their translations, ownership header per file,
-  fix `updateSpy()` to use cached refs. Zero behavior change. *(Agent R)*
-- [ ] **Verify refactor in browser** — full regression: EN/FA UI, both themes,
-  Mermaid render + re-theme, divider drag, pane modes, dialogs, drag-drop,
-  malformed hash, size cap. Then commit + push.
+- [x] **Modular refactor** — DONE, browser-verified. `app.js` → `js/{i18n,state,
+  markdown,documents,workspace,ui,main}.js` (ES modules, `registerI18n()` for
+  module-owned translations, ownership headers); `style.css` → `style/{base,
+  markdown,ui}.css` (170/170 rules preserved); `updateCounts` lives in
+  `state.js` (i18n→state is the only spine import — cycle/TDZ safety).
+  Ownership contract: see each module's header + exports list in commit history.
+- [~] **Parallel feature batch** — B1 (`js/share.js`) + C (`js/ai.js`) launched
+  concurrently on the new layout; each owns exactly one new file.
 
 ## P1 — Next release: two features + integration
 
