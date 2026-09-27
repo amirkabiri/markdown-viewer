@@ -27,6 +27,16 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` done (kept one milest
     theme persistence, live typing; e2e CI job auto-activates now
 - [ ] **Commit T2's workflows** (verify YAML; they activate once T1's scripts exist)
 
+### Milestone: AI direct document editing (current)
+
+- [~] **Agent C3 — direct-edit access for the assistant** (`src/ai/**`):
+  direct-edit toggle (AI writes into the textarea as it streams), pure
+  `computeEdit` helper + unit tests, per-response buttons (insert / append /
+  replace selection / replace document with confirm), native-undo-preserving
+  edits via execCommand fallback chain.
+- [ ] **Verify C3** — typecheck/lint/tests/build + browser pass (stream into
+  textarea in FA, replace selection, undo behavior), commit + push.
+
 ### Milestone: collaborative AI writing (after migration)
 
 - [~] Parallel batch on the TS codebase — file-disjoint ownership:
