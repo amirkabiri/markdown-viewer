@@ -1,0 +1,108 @@
+/* Sidebar panel — ported from legacy style/ui.css (#panel, side sections,
+   side links, TOC, scrim) with logical properties intact for RTL mirroring. */
+
+.panel {
+  position: fixed;
+  inset-block: var(--header-h) 0;
+  inset-inline-start: 0;
+  width: 300px;
+  max-width: 85vw;
+  background: var(--bg-elev);
+  border-inline-end: 1px solid var(--border);
+  padding: 18px 16px;
+  overflow-y: auto;
+  z-index: 70;
+  transform: translateX(var(--panel-hidden, -105%));
+  transition: transform 0.22s ease;
+}
+
+:global(html[dir="rtl"]) .panel {
+  --panel-hidden: 105%;
+}
+
+.open {
+  transform: none;
+}
+
+.sideSection {
+  margin-bottom: 26px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+}
+
+.sideLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13.5px;
+  font-family: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  text-align: start;
+}
+
+.sideLink:hover { background: var(--bg-subtle); }
+.sideLink svg { color: var(--text-muted); }
+
+.sideFooter {
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.sideFooter a { color: var(--accent); text-decoration: none; }
+
+/* TOC */
+.toc {
+  display: flex;
+  flex-direction: column;
+}
+
+.tocLink {
+  display: block;
+  padding: 5px 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-inline-start: 2px solid transparent;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tocLink:hover { color: var(--text); background: var(--bg-subtle); }
+
+.tocActive {
+  color: var(--accent);
+  border-inline-start-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.tocL2 { padding-inline-start: 22px; }
+.tocL3 { padding-inline-start: 34px; }
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 65;
+}
+
+@media (max-width: 880px) {
+  .panel { box-shadow: var(--shadow); }
+}
