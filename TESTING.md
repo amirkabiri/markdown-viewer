@@ -89,8 +89,8 @@ flaky test gets fixed or deleted within the day, never skipped.
 We prefer **hand-rolled fakes at module boundaries** to `vi.mock` module
 patching. Fakes are real (small) implementations with scripted inputs and
 recorded outputs; they double as executable documentation of the boundary
-contract. This is the established house style — see `legacy/test/`
-(`ai-agent.test.ts`, `ai-providers.test.ts`) for the pattern being ported:
+contract. This is the established house style — see the agent and provider
+tests under `src/lib/ai/` (`agent.test.ts`, `providers/http.test.ts`):
 
 ```ts
 /** Streams one scripted reply per stream() call, chunked, recording inputs. */
@@ -111,7 +111,7 @@ class FakeProvider implements ChatProvider {
 Guidelines:
 
 - **Network**: fake `fetch` with real `Response` objects (stream SSE with a
-  `ReadableStream`, like the legacy provider tests) — not by mocking the
+  `ReadableStream`, like the provider tests) — not by mocking the
   fetch wrapper.
 - **Storage/clipboard/etc.**: tiny in-memory implementations.
 - `vi.spyOn` is acceptable for "was this called" assertions at the same

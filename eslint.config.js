@@ -6,10 +6,10 @@ import js from '@eslint/js';
 import { defineConfig } from 'eslint/config';
 
 export default defineConfig([
-  // Never lint build output, static assets, or the frozen vanilla tree.
+  // Never lint build output or static assets.
   {
     name: 'qalam/ignores',
-    ignores: ['dist/', 'node_modules/', 'coverage/', 'public/', 'legacy/'],
+    ignores: ['dist/', 'node_modules/', 'coverage/', 'public/'],
   },
 
   // Base: JS recommended + @stylistic + import-x + Airbnb base rules.

@@ -59,9 +59,7 @@ it to the tsconfig `include` too.
    reject `@testing-library/react`. We allow devDependencies in
    `**/*.test.*`, `**/*.spec.*`, `src/test/**`, and `playwright.config.ts`
    (and only there — app code still may not import dev tooling).
-4. **Ignores** — `dist/`, `node_modules/`, `coverage/`, `public/`, and
-   `legacy/` (the frozen vanilla implementation; read-only porting reference,
-   never linted, typed, or imported).
+4. **Ignores** — `dist/`, `node_modules/`, `coverage/`, and `public/`.
 
 If you ever add a rule override, add it as a named `qalam/deltas/*` block with
 a comment, and list it here.
