@@ -131,9 +131,6 @@ function Shell({ lang, onToggleLang }: ShellProps) {
     return () => window.removeEventListener('popstate', onPopstate);
   }, [repo, boot, route]);
 
-  /* Global keyboard shortcuts are registered further down (after the
-     handlers they dispatch to). */
-
   /* Legacy bindDrop: dropping a .md file anywhere loads it. */
   useEffect(() => {
     const hasFiles = (e: DragEvent): boolean => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
@@ -161,9 +158,6 @@ function Shell({ lang, onToggleLang }: ShellProps) {
       window.removeEventListener('drop', onDrop);
     };
   }, [readAndLoad]);
-
-  /* Global keyboard shortcuts are registered after the handlers they
-     dispatch to — see useGlobalShortcuts below. */
 
   const handleCycleDir = useCallback(() => {
     const next = cycleDir();
