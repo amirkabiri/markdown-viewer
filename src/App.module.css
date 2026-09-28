@@ -1,5 +1,26 @@
-/* App shell styles — overlays (drop / loading) and the footer.
+/* App shell styles — overlays (drop / loading), the skip link and the footer.
    Topbar, workspace and sidebar live in their own modules. */
+
+/* a11y: skip-to-content — hidden until focused, then pinned above everything. */
+.skipLink {
+  position: fixed;
+  inset-block-start: -64px;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  padding: 8px 18px;
+  border-radius: 0 0 10px 10px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: inset-block-start 0.15s;
+}
+
+.skipLink:focus {
+  inset-block-start: 0;
+}
 
 .dropOverlay {
   position: fixed;

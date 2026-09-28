@@ -19,6 +19,7 @@ export interface TopbarProps {
   onCycleDir: () => void;
   aiOpen: boolean;
   onToggleAi: () => void;
+  onShortcuts: () => void;
   lang: Lang;
   onToggleLang: () => void;
   theme: Theme;
@@ -127,6 +128,17 @@ function SparkleIcon() {
   );
 }
 
+function KeyboardIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01" />
+      <path d="M6 13h.01M10 13h.01M14 13h.01M18 13h.01" />
+      <path d="M7 16h10" />
+    </svg>
+  );
+}
+
 const PANE_ARIA: Record<PaneMode, string> = {
   editor: 'Editor only',
   split: 'Split view',
@@ -135,7 +147,7 @@ const PANE_ARIA: Record<PaneMode, string> = {
 
 export default function Topbar({
   panelOpen, onTogglePanel, mode, onSetMode, onOpen, onShare,
-  onCycleDir, aiOpen, onToggleAi, lang, onToggleLang, theme, onToggleTheme,
+  onCycleDir, aiOpen, onToggleAi, onShortcuts, lang, onToggleLang, theme, onToggleTheme,
 }: TopbarProps) {
   const t = useT();
 
@@ -213,12 +225,24 @@ export default function Topbar({
 
       <button
         type="button"
+        className={styles.iconBtn}
+        aria-label={t('shortcuts')}
+        title={t('shortcuts')}
+        onClick={onShortcuts}
+      >
+        <KeyboardIcon />
+      </button>
+
+      <button
+        type="button"
         className={`${styles.btn} ${styles.ghost} ${styles.langBtn}`}
         aria-label={t('toggleLang')}
         title={t('toggleLang')}
         onClick={onToggleLang}
       >
-        {lang === 'fa' ? 'EN' : 'فا'}
+        {/* a11y: the toggle advertises the OTHER language — tag the glyph so
+           screen readers announce it with the right voice/language. */}
+        {lang === 'fa' ? <span lang="en">EN</span> : <span lang="fa">فا</span>}
       </button>
 
       <button

@@ -14,6 +14,10 @@
 //   plain-text bubbles (textContent semantics, never dangerouslySetInnerHTML),
 //     Esc closes, busy disables send, close destroys the builtin session
 //
+// One deliberate exception to "no app dependencies": the Esc topmost-layer
+// rule imports the pure probe isForeignLayerOpen from app/shortcuts (no
+// React, no context) so the panel never closes out from under a RAC layer.
+//
 // Plus the three stakeholder UX requirements:
 //   1. first-send loading feedback — labeled spinner state from send until the
 //      first streamed event ("Starting the on-device model…" for builtin
@@ -47,6 +51,7 @@ import {
 } from 'react-aria-components';
 import { createAgent } from '../../lib/ai/agent';
 import type { ToolExecutor } from '../../lib/ai/agent';
+import { isForeignLayerOpen } from '../../app/shortcuts';
 import {
   isExternalReady,
   loadSettings,
@@ -257,21 +262,30 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
 
   const builtin = useBuiltinAi();
 
+  // Own overlay element — the Escape handler measures foreign layers against
+  // it (the panel's OWN dialog must not count as "a layer above me").
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+
   const [chip, setChip] = useState<SelectionChipState>(() => readChip(editor));
   const refreshChip = useCallback(() => setChip(readChip(editor)), [editor]);
 
   // Esc closes the panel — a document-level CAPTURE listener, exactly like
   // legacy (bubble-phase events from inside the RAC portal are delegated at
   // React's root and never reach a document bubble listener; capture runs
-  // first). While the consent dialog is open, IT owns the escape hatch.
+  // first). Topmost-layer rule: while any React Aria layer OUTSIDE this
+  // panel is open (the consent dialog, the Open dialog, menus…), THAT layer
+  // owns the escape hatch — the panel never closes out from under it.
   useEffect(() => {
-    if (!open || consentOpen) return undefined;
+    if (!open) return undefined;
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key !== 'Escape') return;
+      const overlay = overlayRef.current;
+      if (overlay && isForeignLayerOpen(overlay)) return;
+      setOpen(false);
     };
     document.addEventListener('keydown', onKeyDown, true);
     return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [open, consentOpen]);
+  }, [open]);
 
   // Auto-scroll the message list to the newest content.
   const messagesRef = useRef<HTMLDivElement | null>(null);
@@ -555,7 +569,7 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
 
   return (
     <I18nProvider locale={lang === 'fa' ? 'fa-IR' : 'en-US'}>
-      <ModalOverlay isOpen={open} isDismissable={false} className={styles.overlay}>
+      <ModalOverlay ref={overlayRef} isOpen={open} isDismissable={false} className={styles.overlay}>
         <Modal className={styles.panel}>
           <Dialog aria-label={tt('aiTitle')} className={styles.inner}>
             <header className={styles.head}>

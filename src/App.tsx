@@ -18,8 +18,10 @@ import { EditorProvider, useEditorController } from './features/editor';
 import { previewDirFor, useMarkdownPreview } from './features/preview';
 import { copyShareLink } from './features/share';
 import Sidebar from './app/Sidebar';
+import ShortcutsDialog from './app/ShortcutsDialog';
 import Topbar from './app/Topbar';
 import Workspace from './app/Workspace';
+import { useGlobalShortcuts } from './app/useShortcuts';
 import { useContentDir, usePaneMode } from './app/preferences';
 import { defaultLang, enumOr, store } from './lib/store';
 import type { ContentDir, Lang } from './lib/store';
@@ -90,6 +92,7 @@ function Shell({ lang, onToggleLang }: ShellProps) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
 
@@ -128,20 +131,8 @@ function Shell({ lang, onToggleLang }: ShellProps) {
     return () => window.removeEventListener('popstate', onPopstate);
   }, [repo, boot, route]);
 
-  /* Legacy bindUI keyboard shortcuts: Ctrl/Cmd+O opens the dialog, Escape
-     closes the panel. */
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') {
-        e.preventDefault();
-        setDialogOpen(true);
-      } else if (e.key === 'Escape') {
-        setPanelOpen(false);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  /* Global keyboard shortcuts are registered further down (after the
+     handlers they dispatch to). */
 
   /* Legacy bindDrop: dropping a .md file anywhere loads it. */
   useEffect(() => {
@@ -170,6 +161,9 @@ function Shell({ lang, onToggleLang }: ShellProps) {
       window.removeEventListener('drop', onDrop);
     };
   }, [readAndLoad]);
+
+  /* Global keyboard shortcuts are registered after the handlers they
+     dispatch to — see useGlobalShortcuts below. */
 
   const handleCycleDir = useCallback(() => {
     const next = cycleDir();
@@ -202,6 +196,22 @@ function Shell({ lang, onToggleLang }: ShellProps) {
     if (id) run(documents.renameDocument(id, name));
   }, [documents]);
 
+  /* Global keyboard shortcuts (the map lives in app/shortcuts — one table
+     behind the dispatcher, the cheat sheet and the README). Escape keeps its
+     legacy meaning — close the sidebar panel — but yields to React Aria
+     layers; the AI panel owns its own Escape handler on top. */
+  useGlobalShortcuts({
+    openDialog: () => setDialogOpen(true),
+    newDocument: () => handleNewDocument(),
+    toggleAiPanel: () => setAiOpen((open) => !open),
+    toggleSidebar: () => setPanelOpen((open) => !open),
+    setPaneMode: setMode,
+    copyShareLink: () => handleShare(),
+    cycleDirection: () => handleCycleDir(),
+    openCheatSheet: () => setShortcutsOpen(true),
+    closeTopPanel: () => setPanelOpen(false),
+  });
+
   const sidebar = useMemo(() => (
     <Sidebar
       open={panelOpen}
@@ -227,6 +237,9 @@ function Shell({ lang, onToggleLang }: ShellProps) {
 
   return (
     <EditorProvider api={editorCtl.api}>
+      {/* a11y: first focusable element — visible only on focus, jumps past
+         the topbar into the workspace (main#workspace). */}
+      <a className={styles.skipLink} href="#workspace">{t('skipToContent')}</a>
       <Topbar
         panelOpen={panelOpen}
         onTogglePanel={() => setPanelOpen((open) => !open)}
@@ -237,6 +250,7 @@ function Shell({ lang, onToggleLang }: ShellProps) {
         onCycleDir={handleCycleDir}
         aiOpen={aiOpen}
         onToggleAi={() => setAiOpen((open) => !open)}
+        onShortcuts={() => setShortcutsOpen(true)}
         lang={lang}
         onToggleLang={onToggleLang}
         theme={theme}
@@ -279,6 +293,9 @@ function Shell({ lang, onToggleLang }: ShellProps) {
         }}
         onPaste={(text) => documents.loadPasted(text)}
       />
+
+      {/* The `?` cheat sheet (also the topbar keyboard button). */}
+      <ShortcutsDialog isOpen={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       {dropOpen && (
         <div className={styles.dropOverlay} aria-hidden="true">
           <div className={styles.dropBox}>

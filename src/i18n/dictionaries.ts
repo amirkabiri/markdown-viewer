@@ -127,6 +127,15 @@ export const dictionaries: Record<Lang, Dictionary> = {
     aiReplaceSelection: 'Replace selection',
     aiAppend: 'Append',
     aiReplaceDocument: 'Replace document',
+    // app/shortcuts (global keyboard shortcut layer — one table, cheat sheet
+    // and README render from it)
+    shortcuts: 'Keyboard shortcuts',
+    shortcutsCloseLayer: 'Close panel or dialog',
+    shortcutsGroupView: 'View',
+    shortcutsGroupGeneral: 'General',
+    toggleAiPanel: 'Toggle AI assistant',
+    // a11y (skip link)
+    skipToContent: 'Skip to content',
   },
   fa: {
     appTitle: 'قلم',
@@ -243,5 +252,14 @@ export const dictionaries: Record<Lang, Dictionary> = {
     aiReplaceSelection: 'جایگزینی انتخاب',
     aiAppend: 'افزودن در پایان',
     aiReplaceDocument: 'جایگزینی کل سند',
+    // app/shortcuts (global keyboard shortcut layer — one table, cheat sheet
+    // and README render from it)
+    shortcuts: 'میان‌برهای صفحه‌کلید',
+    shortcutsCloseLayer: 'بستن پنل یا گفتگو',
+    shortcutsGroupView: 'نما',
+    shortcutsGroupGeneral: 'عمومی',
+    toggleAiPanel: 'نمایش/بستن دستیار هوشمند',
+    // a11y (skip link)
+    skipToContent: 'پرش به محتوا',
   },
 };

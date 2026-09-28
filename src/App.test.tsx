@@ -5,7 +5,9 @@
 // The AI panel is stubbed via vi.mock (justified last resort per TESTING.md:
 // the panel drags the whole builtin-AI/fetch-SSE boundary along) — only its
 // mounting through the topbar toggle is asserted here.
-import { render, screen, waitFor } from '@testing-library/react';
+import {
+  render, screen, waitFor, within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   afterEach, beforeEach, describe, expect, it, vi,
@@ -199,5 +201,65 @@ describe('<App /> shell', () => {
     });
     expect(screen.getAllByRole('button', { name: 'Untitled' })).not.toHaveLength(0);
     expect(screen.getAllByRole('button', { name: 'README' })).not.toHaveLength(0);
+  });
+
+  it('routes Ctrl+O to the Open dialog through the shortcut layer', async () => {
+    render(<App />);
+    await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
+
+    await userEvent.keyboard('{Control>}o{/Control}');
+
+    expect(screen.getByRole('heading', { name: 'Open a document' })).toBeVisible();
+  });
+
+  it('closes the Open dialog with Escape while the sidebar stays open', async () => {
+    render(<App />);
+    await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
+    const toggle = screen.getByRole('button', { name: 'Toggle panel' });
+
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+    await userEvent.keyboard('{Control>}o{/Control}');
+    expect(screen.getByRole('heading', { name: 'Open a document' })).toBeVisible();
+
+    // First Escape: the topmost layer (the dialog) closes…
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Open a document' })).toBeNull();
+    });
+    // …and the panel BELOW it stays open for the next Escape.
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    });
+  });
+
+  it('opens the ? cheat sheet, focuses inside it, and restores on Escape', async () => {
+    render(<App />);
+    await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
+
+    // The editor has focus after boot — typing ? must still open the sheet
+    // is NOT expected (typing wins in fields): click away to a chrome button
+    // first, exactly like a keyboard user tabbing out of the editor.
+    await userEvent.click(screen.getByRole('button', { name: 'Toggle light / dark theme' }));
+    await userEvent.keyboard('?');
+
+    const dialog = screen.getByRole('dialog', { name: 'Keyboard shortcuts' });
+    expect(within(dialog).getByText('Ctrl+O')).toBeInTheDocument();
+    // RAC autofocus: the dialog container takes focus and the focus scope
+    // keeps focus inside.
+    expect(dialog).toHaveFocus();
+
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Keyboard shortcuts' })).toBeNull();
+    });
+    // RAC focus restore: the control focused before the dialog has it again.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Toggle light / dark theme' })).toHaveFocus();
+    });
   });
 });
