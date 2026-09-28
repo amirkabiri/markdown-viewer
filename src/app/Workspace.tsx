@@ -1,9 +1,15 @@
 // The workspace (legacy div#workspace): editor pane | divider | preview pane.
 // Owns the split-fraction drag (double-click resets, RTL-aware) and the
 // bidirectional editor/preview scroll sync with the legacy 60 ms lock.
-import { useEffect, useRef, type CSSProperties } from 'react';
+// R8 additions: the readonly-session banner ("being edited in another tab" +
+// Take over) above the editor, and the document name in the pane head is an
+// inline rename (wired to the repository rename).
+import {
+  useEffect, useRef, useState, type CSSProperties,
+} from 'react';
 
 import { useT } from './i18n';
+import { DocumentName } from '../features/documents';
 import Editor from '../features/editor/Editor';
 import type { EditorController } from '../features/editor/useEditorController';
 import Preview from '../features/preview/Preview';
@@ -21,6 +27,10 @@ export interface WorkspaceProps {
   mode: PaneMode;
   editor: EditorController;
   docName: string;
+  /** True while the active document is locked by another tab. */
+  docReadonly: boolean;
+  /** True when the shown name belongs to a persisted, renameable record. */
+  docRenameable: boolean;
   lang: Lang;
   dirEditor: 'ltr' | 'rtl';
   previewState: MarkdownPreviewState;
@@ -30,6 +40,8 @@ export interface WorkspaceProps {
   docIdentity: string;
   onSpyChange: (id: string | null) => void;
   onOpenDocLink: (href: string) => void;
+  onTakeOver: () => void;
+  onRenameDoc: (name: string) => void;
 }
 
 const SPLIT_MIN = 0.2;
@@ -38,13 +50,14 @@ const SPLIT_MAX = 0.8;
 const SCROLL_LOCK_MS = 60;
 
 export default function Workspace({
-  mode, editor, docName, lang, dirEditor, previewState, previewDir, dirMode,
-  theme, docIdentity, onSpyChange, onOpenDocLink,
+  mode, editor, docName, docReadonly, docRenameable, lang, dirEditor, previewState, previewDir,
+  dirMode, theme, docIdentity, onSpyChange, onOpenDocLink, onTakeOver, onRenameDoc,
 }: WorkspaceProps) {
   const t = useT();
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const dividerRef = useRef<HTMLDivElement | null>(null);
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
+  const [renamingDoc, setRenamingDoc] = useState(false);
   const modeRef = useRef(mode);
   useEffect(() => {
     modeRef.current = mode;
@@ -135,13 +148,35 @@ export default function Workspace({
       <section className={styles.editorPane} aria-label="Markdown editor">
         <div className={styles.paneHead}>
           <span className={styles.paneLabel}>{t('editor')}</span>
-          <span className={styles.docName}>{docName}</span>
+          {docRenameable ? (
+            <DocumentName
+              name={docName}
+              label={t('docRename')}
+              editing={renamingDoc}
+              onEditingChange={setRenamingDoc}
+              onCommit={onRenameDoc}
+              onActivate={() => setRenamingDoc(true)}
+              className={styles.docName}
+              inputClassName={styles.docNameInput}
+            />
+          ) : (
+            <span className={styles.docName}>{docName}</span>
+          )}
         </div>
+        {docReadonly && (
+          <div className={styles.lockBanner} role="status">
+            <span>{t('docLockedBanner')}</span>
+            <button type="button" className={styles.takeOverBtn} onClick={onTakeOver}>
+              {t('docTakeOver')}
+            </button>
+          </div>
+        )}
         <Editor
           controller={editor}
           dir={dirEditor}
           ariaLabel={t('editorAria')}
           placeholder="# Start writing… / بنویسید…"
+          readOnly={docReadonly}
         />
         <div className={styles.statusbar}>
           <span>{countWords(editor.text).toLocaleString(localeForLang(lang))}</span>

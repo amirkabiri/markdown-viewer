@@ -1,9 +1,11 @@
 // The slide-over sidebar panel (legacy aside#panel + #scrim): table of
-// contents with scroll-spy highlighting, the document links, recent
-// documents, and the footer. Clicking a TOC link closes the panel and
-// smooth-scrolls to the heading, like legacy buildToc.
+// contents with scroll-spy highlighting, the persisted document list
+// (create/select/rename/remove/reorder — the repository IS the recents list
+// now), the site document links, and the footer. Clicking a TOC link closes
+// the panel and smooth-scrolls to the heading, like legacy buildToc.
 import { useT } from './i18n';
-import type { RecentItem } from '../lib/documents';
+import { DocumentList } from '../features/documents';
+import type { DocumentRecord } from '../lib/persistence';
 import type { MarkdownTocEntry } from '../lib/markdown';
 
 import styles from './Sidebar.module.css';
@@ -13,9 +15,14 @@ export interface SidebarProps {
   onClose: () => void;
   toc: MarkdownTocEntry[];
   activeHeadingId: string | null;
-  recent: RecentItem[];
+  /** All persisted documents, live (repository sortIndex order). */
+  docs: DocumentRecord[];
+  activeDocId: string | null;
+  onSelectDoc: (id: string) => void;
+  onRemoveDoc: (id: string) => void;
+  onRenameDoc: (id: string, name: string) => void;
+  onReorderDocs: (orderedIds: string[]) => void;
   onOpenFileParam: (fileParam: string) => void;
-  onOpenRecent: (item: RecentItem) => void;
   onNewDocument: () => void;
 }
 
@@ -27,8 +34,9 @@ const DOC_LINKS: readonly { file: string; labelKey: string }[] = [
 ];
 
 export default function Sidebar({
-  open, onClose, toc, activeHeadingId, recent,
-  onOpenFileParam, onOpenRecent, onNewDocument,
+  open, onClose, toc, activeHeadingId, docs, activeDocId,
+  onSelectDoc, onRemoveDoc, onRenameDoc, onReorderDocs,
+  onOpenFileParam, onNewDocument,
 }: SidebarProps) {
   const t = useT();
   const minLevel = toc.length ? Math.min(...toc.map((e) => e.level)) : 2;
@@ -71,6 +79,18 @@ export default function Sidebar({
 
         <section className={styles.sideSection}>
           <h2 className={styles.sectionTitle}>{t('documents')}</h2>
+          <DocumentList
+            docs={docs}
+            activeDocId={activeDocId}
+            /* Selecting a persisted document keeps the panel open — the
+               switch is instant and the active highlight stays visible (only
+               the site doc links navigate and close). Double-click-to-rename
+               also depends on the click not tearing the panel down. */
+            onSelect={onSelectDoc}
+            onRemove={onRemoveDoc}
+            onRename={onRenameDoc}
+            onReorder={onReorderDocs}
+          />
           {DOC_LINKS.map((doc) => (
             <a
               key={doc.file}
@@ -92,26 +112,6 @@ export default function Sidebar({
             <span>{t('newDoc')}</span>
           </button>
         </section>
-
-        {recent.length > 0 && (
-          <section className={styles.sideSection}>
-            <h2 className={styles.sectionTitle}>{t('recent')}</h2>
-            {recent.map((item) => (
-              <a
-                key={item.url}
-                className={styles.sideLink}
-                href={item.url}
-                onClick={(ev) => {
-                  ev.preventDefault();
-                  onClose();
-                  onOpenRecent(item);
-                }}
-              >
-                <span>{item.name}</span>
-              </a>
-            ))}
-          </section>
-        )}
 
         <div className={styles.sideFooter}>
           <span>{t('footer')}</span>

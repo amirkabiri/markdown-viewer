@@ -122,3 +122,59 @@
   .workspace.modeSplit .previewPane { flex: 1; }
   .workspace.modePreview .previewPane { display: flex; }
 }
+
+/* --- R8: readonly-session banner + inline document rename --- */
+
+.lockBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 14px;
+  flex-shrink: 0;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.takeOverBtn {
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.takeOverBtn:hover {
+  background: var(--accent);
+  color: var(--bg-elev);
+}
+
+.docNameInput {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  color: var(--text);
+  max-width: 40%;
+  min-width: 90px;
+  direction: ltr;
+  unicode-bidi: plaintext;
+}
+
+/* The name button inherits .docName styling; keep it looking identical. */
+button.docName {
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: text;
+  padding: 0;
+}

@@ -1,0 +1,202 @@
+/* DocumentList — the persisted documents rows in the sidebar. Logical
+   properties throughout so the whole block mirrors under RTL, and the
+   pointer drag (vertical hit-testing in the component) needs no
+   direction-specific code. */
+
+.list {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 8px;
+  padding-inline-end: 2px;
+}
+
+.row:hover {
+  background: var(--bg-subtle);
+}
+
+.rowActive {
+  background: var(--accent-soft);
+}
+
+.rowDragging {
+  opacity: 0.55;
+  outline: 1px dashed var(--accent);
+}
+
+.grip {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 6px 2px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13.5px;
+  padding: 7px 4px;
+  cursor: pointer;
+}
+
+.rowActive .name {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.nameInput {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 5px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  color: var(--text);
+}
+
+.menuBtn {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.menuBtn:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+/* Row-action menu (RAC Popover/Menu). */
+.popover {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 4px;
+  min-width: 160px;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+.menuItem {
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.menuItem[data-focused],
+.menuItem:hover {
+  background: var(--bg-subtle);
+}
+
+.menuItem[data-disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.menuItemDanger {
+  color: var(--danger);
+}
+
+/* Removal confirm dialog (non-dismissable alertdialog). */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal {
+  outline: none;
+}
+
+.dialog {
+  background: var(--bg-elev);
+  border-radius: 12px;
+  padding: 20px;
+  width: min(90vw, 380px);
+  box-shadow: var(--shadow);
+  outline: none;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.body {
+  margin: 0 0 16px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.btnGhost {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btnGhost:hover {
+  background: var(--bg-subtle);
+}
+
+.btnDanger {
+  border: 0;
+  background: var(--danger);
+  color: #fff;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
