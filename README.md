@@ -28,7 +28,14 @@ backend and no telemetry — the whole app is static files on GitHub Pages.
 - **Scroll sync** between editor and preview
 - **Syntax highlighting** (highlight.js) with copy buttons; the code theme swaps with the app theme
 - **[Mermaid](https://mermaid.js.org) diagrams** in fenced ```` ```mermaid ```` blocks — light & dark themes, Persian labels supported
-- **Light / dark theme** remembered across visits; responsive layout; auto table of contents with scroll-spy; recent documents; word/char counts
+- **Light / dark theme** remembered across visits; responsive layout; auto table of contents with scroll-spy; word/char counts
+
+### Documents & persistence
+
+- **Every change autosaved** to IndexedDB (debounced writes plus an unload-safety snapshot) — close the tab, come back tomorrow, everything is still there
+- **Multi-document sidebar** — create, rename, remove and reorder documents; the active document is restored on your next visit
+- **Multi-tab safe** — each open document holds a per-tab session lock (a second tab reads it read-only and can take over), tabs stay in live sync, and a stolen session never loses your unsaved buffer (it is kept as a copy)
+- **Pluggable storage architecture** — IndexedDB today, a File System Access driver planned; recents from the vanilla app migrate automatically on first boot
 
 ### AI co-author
 
@@ -55,7 +62,7 @@ backend and no telemetry — the whole app is static files on GitHub Pages.
 ### Engineering
 
 - **Strict TypeScript** on Vite; ESLint flat config; typecheck, lint, unit tests and build gate every push in CI
-- **395 Vitest unit/component tests** (share codec, stream chunking, provider parsers, settings repair, agent loop, shortcuts layer) and **54 Playwright e2e runs** — 18 tests in 5 specs, including axe-core accessibility scans of every key UI state, across Chromium, Firefox and WebKit — against the production build
+- **402 Vitest unit/component tests** (persistence repository + multi-tab sync, legacy migration, documents controller, share codec, stream chunking, provider parsers, settings repair, agent loop, shortcuts layer) and **60 Playwright e2e runs** — 20 tests in 5 specs, including axe-core accessibility scans of every key UI state and cross-tab session/sync specs, across Chromium, Firefox and WebKit — against the production build
 - **Content-Security-Policy** with `script-src 'self'` — no third-party scripts, ever
 - **No CDN code at runtime** — marked, DOMPurify, highlight.js and Mermaid are lockfile-pinned npm dependencies bundled by Vite (Mermaid is code-split and fetched only when a diagram renders); the only external fetch is the Vazirmatn font CSS
 
@@ -118,8 +125,9 @@ link is refused.
 | `#d=` | A self-contained share link — see [Share links](#share-links) |
 | Default | With no parameters, this repo's own `README.md` loads |
 
-Recent documents stay in the sidebar, `.md` links inside documents navigate
-within the viewer, and input is capped at 10 MB.
+Everything you open or create is kept — and autosaved — in the sidebar
+(rename, reorder, remove). `.md` links inside documents navigate within the
+viewer, and input is capped at 10 MB.
 
 ## Keyboard shortcuts
 
@@ -171,33 +179,48 @@ Each `src/` module documents what it owns in a header comment:
 
 ```text
 src/
-  main.ts        # entry: boot sequence, ?file=/?url=/#d= routing, AI-button wiring
-  state.ts       # mv:* localStorage store, validated app state, shared helpers, DOM refs
-  i18n.ts        # EN/FA dictionaries and language application
-  workspace.ts   # editor bindings, scroll sync, divider drag, pane modes, direction
-  markdown.ts    # render pipeline: marked + DOMPurify + highlight.js + Mermaid
-  documents.ts   # URL/file loading, recent documents, #d= share-hash routing
-  share.ts       # self-contained #d= share links (base64url + deflate)
-  ui.ts          # TOC + scroll spy, slide-over panel, dialogs, topbar, drag & drop
-  ai.ts          # shim re-exporting src/ai/ (frozen import paths)
-  ai/            # assistant panel + provider layer (panel UI, agent loop, provider routing)
-    agent.ts     # provider-agnostic tool-protocol agent core
-    providers/   # builtin (Prompt API), openai, anthropic SSE adapters
-    settings.ts  # validated mv:ai provider settings
-    chunk.ts     # pure streaming text helpers
-    ambient.ts   # ambient types for the Chrome built-in AI APIs
-test/            # Vitest unit tests (pure modules)
-e2e/             # Playwright specs
+  main.tsx        # entry: mounts <App /> under the providers
+  App.tsx         # shell composition: topbar, workspace, sidebar, dialogs, drag & drop
+  app/            # shell concerns: Workspace/Sidebar/Topbar, keyboard shortcuts, theme,
+                  # preferences, i18n context, the persistence provider
+  features/
+    editor/       # editor state + controller (loading documents into the editor,
+                  # undo-preserving AI edits)
+    preview/      # live preview: marked + DOMPurify + highlight.js + Mermaid,
+                  # scroll sync and heading scroll-spy
+    documents/    # repository-backed documents: boot/route (?url=/?file=/#d=),
+                  # sidebar management (create/rename/remove/reorder), open dialog
+    share/        # copy-the-self-contained-link flow
+    ai/           # assistant panel: chat surface, settings form, consent and
+                  # tool-activity UI
+  lib/
+    ai/           # provider-agnostic agent core + tool edits, provider adapters
+                  # (builtin Prompt API, OpenAI, Anthropic), validated settings
+    markdown.ts   # render pipeline: sanitize, highlight, mermaid extraction, TOC
+    documents.ts  # URL normalization, fetch, recents (pure halves)
+    share.ts      # self-contained #d= share links (base64url + deflate)
+    store.ts      # mv:* localStorage store
+    persistence/  # document repository: drivers (IndexedDB, in-memory fallback),
+                  # multi-tab sync + session locks, one-shot legacy migration
+  i18n/           # EN/FA dictionaries and lookup
+test/             # shared test fakes + setup
+e2e/              # Playwright specs
 ```
 
 ### Testing notes
 
-Unit tests cover the pure modules: the share codec, stream chunk normalization,
-provider delta parsers, settings repair and the tool-agent loop (protocol parsing,
-execution cap/termination, executor gating). The Playwright suite runs against a
-production build (`vite build` + `vite preview`) across Chromium, Firefox and
-WebKit. CI runs typecheck, lint, unit tests and build on every push and PR, plus
-the e2e job on `main`.
+Unit tests (~400 across Vitest's node and jsdom projects) cover the pure
+modules — the share codec, stream chunk normalization, provider delta parsers,
+settings repair and the tool-agent loop (protocol parsing, execution
+cap/termination, executor gating) — plus the persistence layer over real
+fakes: the autosave pipeline, two repositories sharing one fake-indexeddb
+database (edit-in-A-appears-in-B, lock steals, monotonic revisions), the
+one-shot legacy migration and its duplicate self-heal. The Playwright suite
+(20 tests × 3 engines, 60 runs) executes against a production build
+(`vite build` + `vite preview`) across Chromium, Firefox and WebKit,
+including axe-core scans of every key UI state and cross-tab session/sync
+specs. CI runs typecheck, lint, unit tests and build on every push and PR,
+plus the e2e job on `main`.
 
 ## Deployment
 
@@ -239,6 +262,10 @@ setup: **Settings → Pages → Source: GitHub Actions**. The site lives at
 - نمودارهای مرمید، هایلایت کد، فهرست مطالب خودکار و حالت روشن/تاریک.
 - هم‌رسانی خودکفا با پیوند `#d=`: کل سند در fragment نشانی فشرده می‌شود و هرگز
   برای سروری فرستاده نمی‌شود.
+- چندسند و ماندگار: هر تغییری خودکار در IndexedDB مرورگر ذخیره می‌شود (معماری
+  ذخیره‌سازی با درایور قابل تعویض — پشتیبانی File System Access در نقشهٔ راه)؛
+  سندها در نوار کناری ساخته، تغییرنام، حذف و جابه‌جا می‌شوند و کار هم‌زمان در
+  چند زبانه با قفل نشست و هم‌گام‌سازی زنده بی‌خطر است.
 - تولید فارسی با Gemini Nano غیررسمی است؛ برای کارهای فارسی‌محور، سرویس بیرونی
   گزینهٔ بهتری است. ([امتحان کنید](https://amirkabiri.github.io/qalam/))
 - بدون سرور، بدون حساب کاربری، بدون تلمتری.
