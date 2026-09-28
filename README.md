@@ -55,7 +55,7 @@ backend and no telemetry — the whole app is static files on GitHub Pages.
 ### Engineering
 
 - **Strict TypeScript** on Vite; ESLint flat config; typecheck, lint, unit tests and build gate every push in CI
-- **96 Vitest unit tests** (share codec, stream chunking, provider parsers, settings repair, agent loop) and **12 Playwright e2e runs** — 4 specs across Chromium, Firefox and WebKit — against the production build
+- **395 Vitest unit/component tests** (share codec, stream chunking, provider parsers, settings repair, agent loop, shortcuts layer) and **54 Playwright e2e runs** — 18 tests in 5 specs, including axe-core accessibility scans of every key UI state, across Chromium, Firefox and WebKit — against the production build
 - **Content-Security-Policy** with `script-src 'self'` — no third-party scripts, ever
 - **No CDN code at runtime** — marked, DOMPurify, highlight.js and Mermaid are lockfile-pinned npm dependencies bundled by Vite (Mermaid is code-split and fetched only when a diagram renders); the only external fetch is the Vazirmatn font CSS
 
@@ -120,6 +120,30 @@ link is refused.
 
 Recent documents stay in the sidebar, `.md` links inside documents navigate
 within the viewer, and input is capped at 10 MB.
+
+## Keyboard shortcuts
+
+Press <kbd>?</kbd> anywhere (outside a text field) for the built-in cheat
+sheet — it renders in your interface language. On macOS the shortcuts use
+<kbd>⌘</kbd>; elsewhere <kbd>Ctrl</kbd>.
+
+| Action | Keys |
+| --- | --- |
+| Open a document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>O</kbd> |
+| New document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>N</kbd> |
+| Copy link to this document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> |
+| Toggle panel | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>&#92;</kbd> |
+| Toggle AI assistant | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>I</kbd> |
+| Editor only | <kbd>Alt</kbd>+<kbd>1</kbd> |
+| Split view | <kbd>Alt</kbd>+<kbd>2</kbd> |
+| Preview only | <kbd>Alt</kbd>+<kbd>3</kbd> |
+| Text direction (Auto / LTR / RTL) | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd> |
+| Keyboard shortcuts | <kbd>?</kbd> |
+| Close panel or dialog | <kbd>Esc</kbd> |
+
+The map has a single source of truth in the app (`src/app/shortcuts.ts`): the
+dispatcher, the cheat sheet and this table all render from it, and a unit
+test fails if the docs drift.
 
 ## Development
 
@@ -218,6 +242,26 @@ setup: **Settings → Pages → Source: GitHub Actions**. The site lives at
 - تولید فارسی با Gemini Nano غیررسمی است؛ برای کارهای فارسی‌محور، سرویس بیرونی
   گزینهٔ بهتری است. ([امتحان کنید](https://amirkabiri.github.io/qalam/))
 - بدون سرور، بدون حساب کاربری، بدون تلمتری.
+
+### میان‌برهای صفحه‌کلید
+
+کلید <kbd>?</kbd> را بزنید (بیرون از فیلدهای متنی) تا فهرست میان‌برها را به
+زبان رابط ببینید. در مک میان‌برها با <kbd>⌘</kbd> و در بقیهٔ سیستم‌ها با
+<kbd>Ctrl</kbd> کار می‌کنند.
+
+| کنش | کلیدها |
+| --- | --- |
+| باز کردن سند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>O</kbd> |
+| سند جدید | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>N</kbd> |
+| کپی نشانی این سند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> |
+| نمایش/بستن پنل | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>&#92;</kbd> |
+| نمایش/بستن دستیار هوشمند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>I</kbd> |
+| فقط ویرایشگر | <kbd>Alt</kbd>+<kbd>1</kbd> |
+| نمای دو بخشی | <kbd>Alt</kbd>+<kbd>2</kbd> |
+| فقط پیش‌نمایش | <kbd>Alt</kbd>+<kbd>3</kbd> |
+| جهت متن (خودکار / چپ‌به‌راست / راست‌به‌چپ) | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd> |
+| میان‌برهای صفحه‌کلید | <kbd>?</kbd> |
+| بستن پنل یا گفتگو | <kbd>Esc</kbd> |
 
 ## Contributing
 
