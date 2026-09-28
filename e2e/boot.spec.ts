@@ -68,4 +68,18 @@ test.describe('app boot', () => {
     expect(consoleErrors).toEqual([]);
     expect(pageErrors).toEqual([]);
   });
+
+  test('the boot README renders its repo-relative logo image', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('article h1')).toHaveText(/Qalam/);
+
+    // The README references public/logo.svg relative to the repo — the build
+    // mirrors it to dist/public/ so the preview's first image actually loads
+    // (a 404 would fall back to index.html and render as a broken image).
+    const logo = page.locator('article img').first();
+    await expect(logo).toBeVisible();
+    await expect
+      .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
+  });
 });
