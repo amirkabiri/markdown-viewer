@@ -137,16 +137,27 @@ sort. Implemented in the React rewrite only (the vanilla app is frozen).
   barrel import → `createDefaultDriver()` + `createDocumentRepository` with
   one `TabSyncHub` + lock adapter per tab; `openDocument(id)` →
   edit/readonly session + `takeover()`; run migration once after `init()`.
-- [ ] **Agent R8 — document management UI** (after R4 + R7) — sidebar lists
-  all persisted documents: create, select (loads into editor), remove (with
-  confirm), drag-to-reorder (persisted via `reorder`); autosave wiring in the
-  editor (every change → repository save, flush on hide); documents opened
-  via `?file=`/`?url=`/`#d=`/upload become records (source metadata); active
-  document pointer; component tests + e2e for the sidebar flows. Multi-tab
-  UI: readonly banner + "Take over" action on readonly sessions, stolen-
-  session toast (copy created), live sidebar updates from remote-change
-  events; a **two-tab e2e spec** (edit in tab A appears in tab B; takeover
-  flow).
+- [x] **Agent R8 — document management UI** — DONE, verified by the lead
+  (359/359 unit, 39/39 e2e × 3 engines; lint 0/0). Sidebar = the repository:
+  live list (incl. remote changes), create, select via edit/readonly
+  sessions, rename (inline + pane head), remove (localized confirm), drag
+  reorder + keyboard move (persisted), active-doc restore, `?url=`/`?file=`
+  dedupe by source, `#d=`/upload/paste become records. Multi-tab UX:
+  readonly banner + Take over, stolen → "Saved a copy" toast, live lists.
+  **Finding:** pagehide flush alone loses the last debounce window on
+  instant reload (browsers discard in-flight IDB transactions) — fixed with
+  a synchronous `mv:doc-draft` localStorage snapshot + revision-guarded
+  re-adoption at boot. AiPanel mounted from the topbar toggle; toasts
+  bridged to the app region; labels promoted into the dictionaries.
+  **Open item → R6:** the boot smoke e2e flapped once in full 3-engine runs
+  (zero-console-error assertion; passed on three subsequent runs incl.
+  chromium-only) — reproduce, capture the error, fix deterministically.
+- [ ] **Agent R6 — a11y + keyboard shortcuts** — full keyboard map (famous
+  conventions, no browser conflicts, RTL-aware) implemented in one shortcuts
+  module + `?` cheat-sheet dialog; axe scans (zero serious/critical) across
+  main views + dialogs; skip-link, focus-visible, icon-button labels, list
+  roving focus, reduced-motion, contrast both themes; README documents the
+  shortcuts; the e2e flake fix above.
 - [ ] **Acceptance addition** — multi-document persistence verified in
   browser: reload keeps content (autosave), order persists, legacy
   migration runs once, removal confirm, EN+FA. **Multi-tab scenarios:**
