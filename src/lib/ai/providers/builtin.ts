@@ -123,7 +123,6 @@ export class BuiltinProvider implements ChatProvider {
     try {
       const iterator = session.promptStreaming(promptText)[Symbol.asyncIterator]();
       for (;;) {
-        // eslint-disable-next-line no-await-in-loop -- sequential stream consumption
         const { done, value: rawUnknown } = await iterator.next();
         if (done === true) break;
         if (opts?.signal?.aborted) return;

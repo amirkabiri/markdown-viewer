@@ -52,7 +52,6 @@ export async function* streamSSEDeltas(
   try {
     for (;;) {
       if (opts?.signal?.aborted) return;
-      // eslint-disable-next-line no-await-in-loop -- sequential stream consumption
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });

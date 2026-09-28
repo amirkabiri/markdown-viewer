@@ -3,7 +3,6 @@
 // ToolExecutor recording calls. Reused by agent tests and, later, the AI
 // panel component tests.
 
-// eslint-disable-next-line max-classes-per-file -- agent fakes ship together for cross-file reuse
 import type { ToolExecutor } from '../lib/ai/agent';
 import type { EditMode } from '../lib/ai/edits';
 import type { ChatMessage, ChatProvider, ProviderId } from '../lib/ai/types';
