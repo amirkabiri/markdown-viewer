@@ -67,6 +67,20 @@ export const dictionaries: Record<Lang, Dictionary> = {
     mermaidError: 'Mermaid diagram error',
     // ai/edits.ts
     aiReplaceDocConfirm: 'Replace the whole document with this text?',
+    // app/persistence (degraded, in-memory fallback)
+    persistenceDegraded: 'Storage is unavailable — documents will not survive closing this tab.',
+    // document management (sidebar list, sessions, removal, ordering)
+    docLockedBanner: 'Being edited in another tab',
+    docTakeOver: 'Take over',
+    docRename: 'Rename',
+    docRemove: 'Remove',
+    docMoveUp: 'Move up',
+    docMoveDown: 'Move down',
+    docActions: 'Document actions',
+    docRemoveConfirmTitle: 'Remove document?',
+    docRemoveConfirmBody: '“{name}” will be permanently removed.',
+    docCopied: 'Saved a copy',
+    cancel: 'Cancel',
     // ai/index.ts
     aiButton: 'AI assistant',
     aiTitle: 'AI assistant',
@@ -96,6 +110,23 @@ export const dictionaries: Record<Lang, Dictionary> = {
     aiToolRead: 'Reading document…',
     aiToolEdit: 'Editing document…',
     aiSelectionChip: 'Editing selection',
+    // features/ai (promoted verbatim from features/ai/labels.ts — R8)
+    aiStartingModel: 'Starting the on-device model…',
+    aiConnectingOpenai: 'Connecting to the OpenAI-compatible service…',
+    aiConnectingAnthropic: 'Connecting to the Anthropic-compatible service…',
+    aiConsentTitle: 'Download the on-device AI model?',
+    aiConsentBody:
+      'The on-device model requires a one-time download of about 4 GB and then runs entirely in your browser — this app makes no network calls. Download it now?',
+    aiDownloadAction: 'Download',
+    aiNotNow: 'Not now',
+    aiToolActivity: 'Agent activity',
+    aiToolRunning: 'Running…',
+    aiToolOk: 'OK',
+    aiToolRefused: 'Refused',
+    aiInsert: 'Insert at cursor',
+    aiReplaceSelection: 'Replace selection',
+    aiAppend: 'Append',
+    aiReplaceDocument: 'Replace document',
   },
   fa: {
     appTitle: 'قلم',
@@ -152,6 +183,20 @@ export const dictionaries: Record<Lang, Dictionary> = {
     mermaidError: 'خطا در نمودار مرمید',
     // ai/edits.ts
     aiReplaceDocConfirm: 'کل سند با این متن جایگزین شود؟',
+    // app/persistence (degraded, in-memory fallback)
+    persistenceDegraded: 'حافظه در دسترس نیست — اسناد با بستن این برگه از بین می‌روند.',
+    // document management (sidebar list, sessions, removal, ordering)
+    docLockedBanner: 'در حال ویرایش در برگه‌ای دیگر',
+    docTakeOver: 'در دست گرفتن ویرایش',
+    docRename: 'تغییر نام',
+    docRemove: 'حذف',
+    docMoveUp: 'انتقال به بالا',
+    docMoveDown: 'انتقال به پایین',
+    docActions: 'کنش‌های سند',
+    docRemoveConfirmTitle: 'سند حذف شود؟',
+    docRemoveConfirmBody: '«{name}» برای همیشه حذف می‌شود.',
+    docCopied: 'یک رونوشت ذخیره شد',
+    cancel: 'انصراف',
     // ai/index.ts
     aiButton: 'دستیار هوشمند',
     aiTitle: 'دستیار هوشمند',
@@ -181,5 +226,22 @@ export const dictionaries: Record<Lang, Dictionary> = {
     aiToolRead: 'در حال خواندن سند…',
     aiToolEdit: 'در حال ویرایش سند…',
     aiSelectionChip: 'ویرایش انتخاب',
+    // features/ai (promoted verbatim from features/ai/labels.ts — R8)
+    aiStartingModel: 'در حال راه‌اندازی مدل روی دستگاه…',
+    aiConnectingOpenai: 'در حال اتصال به سرویس سازگار با OpenAI…',
+    aiConnectingAnthropic: 'در حال اتصال به سرویس سازگار با Anthropic…',
+    aiConsentTitle: 'بارگیری مدل هوش مصنوعی روی دستگاه؟',
+    aiConsentBody:
+      'این قابلیت به بارگیری یک‌بارهٔ حدود ۴ گیگابایتی مدل نیاز دارد و سپس کاملاً روی دستگاه شما اجرا می‌شود — این برنامه هیچ درخواست شبکه‌ای نمی‌فرستد. اکنون بارگیری شود؟',
+    aiDownloadAction: 'بارگیری',
+    aiNotNow: 'فعلاً نه',
+    aiToolActivity: 'فعالیت دستیار',
+    aiToolRunning: 'در حال اجرا…',
+    aiToolOk: 'انجام شد',
+    aiToolRefused: 'رد شد',
+    aiInsert: 'درج در نشانگر',
+    aiReplaceSelection: 'جایگزینی انتخاب',
+    aiAppend: 'افزودن در پایان',
+    aiReplaceDocument: 'جایگزینی کل سند',
   },
 };

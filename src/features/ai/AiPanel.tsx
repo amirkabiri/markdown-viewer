@@ -44,11 +44,6 @@ import {
   ModalOverlay,
   ProgressBar,
   TextArea,
-  // The toast primitives ship under an UNSTABLE_ prefix in RAC 1.21 — alias
-  // to PascalCase for JSX (the queue itself comes from react-stately).
-  UNSTABLE_Toast as Toast,
-  UNSTABLE_ToastContent as ToastContent,
-  UNSTABLE_ToastRegion as ToastRegion,
 } from 'react-aria-components';
 import { createAgent } from '../../lib/ai/agent';
 import type { ToolExecutor } from '../../lib/ai/agent';
@@ -64,12 +59,11 @@ import type { Lang } from '../../i18n';
 import { buildChatMessages } from './chat';
 import createExternalProvider from './chat-provider';
 import ConsentDialog from './ConsentDialog';
-import { makeAiT } from './labels';
 import AiSettingsForm from './AiSettingsForm';
 import type { ProviderDraft } from './AiSettingsForm';
 import ToolActivity from './ToolActivity';
 import type { ToolCallView } from './ToolActivity';
-import { aiToast, aiToastQueue } from './toast-queue';
+import { aiToast } from './toast-queue';
 import { useBuiltinAi } from './useBuiltinAi';
 import type { BuiltinAi } from './useBuiltinAi';
 import styles from './AiPanel.module.css';
@@ -227,7 +221,9 @@ function MessageBody({
  * workspace) rendered through React Aria's modal primitives.
  */
 export default function AiPanel({ editor, t, lang }: AiPanelProps) {
-  const tt = makeAiT(lang, t);
+  // All labels now live in the global dictionaries (promoted from the former
+  // feature-local labels.ts) — the injected translator covers every key.
+  const tt = t;
 
   const [open, setOpen] = useState(true);
   const [settings, setSettings] = useState<ProviderSettings>(loadSettings);
@@ -650,14 +646,6 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
         onAccept={handleConsentAccept}
         onDecline={handleConsentDecline}
       />
-
-      <ToastRegion queue={aiToastQueue} className={styles.toastRegion}>
-        {({ toast }) => (
-          <Toast toast={toast} className={styles.toast}>
-            <ToastContent>{toast.content}</ToastContent>
-          </Toast>
-        )}
-      </ToastRegion>
     </I18nProvider>
   );
 }

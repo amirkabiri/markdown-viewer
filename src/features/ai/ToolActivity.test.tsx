@@ -8,10 +8,9 @@ import { describe, expect, it } from 'vitest';
 import ToolActivity from './ToolActivity';
 import type { ToolCallView } from './ToolActivity';
 import { makeT } from './ai-fakes';
-import { makeAiT } from './labels';
 
-// The panel's real translator: feature-local keys first, then the dictionaries.
-const tt = makeAiT('en', makeT('en'));
+// The panel's translator: all label keys now live in the global dictionaries.
+const tt = makeT('en');
 
 describe('<ToolActivity />', () => {
   it('renders nothing without tool calls', () => {

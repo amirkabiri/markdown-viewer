@@ -8,13 +8,22 @@ import userEvent from '@testing-library/user-event';
 import {
   afterEach, beforeAll, beforeEach, describe, expect, it, vi,
 } from 'vitest';
+import { ToastProvider } from '../../components/Toast';
 import AiPanel from './AiPanel';
+import { aiToastQueue } from './toast-queue';
 import { createFakeEditor, installMatchMediaStub, makeT } from './ai-fakes';
 
 const t = makeT('en');
 
+// The panel's ToastRegion is gone (R8): AI toasts surface through the
+// app-root ToastProvider, bridged from the shared aiToastQueue — mirrored
+// here so the save-confirmation toast stays observable.
 function renderPanel(): void {
-  render(<AiPanel editor={createFakeEditor('')} t={t} lang="en" />);
+  render(
+    <ToastProvider>
+      <AiPanel editor={createFakeEditor('')} t={t} lang="en" />
+    </ToastProvider>,
+  );
 }
 
 async function openSettings(): Promise<void> {
@@ -53,7 +62,12 @@ describe('AI provider settings', () => {
     });
 
     expect(await screen.findByText('Ready — external AI service configured.')).toBeInTheDocument();
-    expect(await screen.findByText('AI settings saved')).toBeInTheDocument(); // toast
+    // The in-panel ToastRegion is gone (R8): the panel emits into the shared
+    // aiToastQueue, and the app-root bridge renders it (covered in App tests).
+    await waitFor(() => {
+      expect(aiToastQueue.visibleToasts.map((toast) => toast.content))
+        .toContain('AI settings saved');
+    });
   });
 
   it('keeps an incomplete external provider disabled with an honest status line', async () => {
