@@ -80,6 +80,19 @@ body {
   overflow: hidden;
 }
 
+/* The React mount point IS the shell column the vanilla body used to be: its
+   in-flow children — topbar header, workspace main, footer — are its flex
+   items (workspace has flex: 1 + min-height: 0), so the workspace bounds to
+   the viewport and the editor/preview panes scroll internally. The height
+   must stay fixed: height:auto grows with the document, and the fixed-
+   viewport body then clips everything below the fold (the panes never
+   overflow, nothing scrolls, the footer ends up unreachable). */
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 ::selection { background: var(--accent-soft); }
 
 button { font-family: inherit; }
