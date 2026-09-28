@@ -144,4 +144,26 @@ test.describe('sidebar document management', () => {
     await expect(panel.locator('li').nth(0)).toContainText('Alpha drag');
     await expect(panel.locator('li').nth(2)).toContainText('README');
   });
+
+  test('legacy recents migration leaves one row per document', async ({ page }) => {
+    // A browser profile that used the vanilla app: mv:recent holds absolute
+    // urls the React boot also loads (the README boots by default). The
+    // one-shot migration must adopt/skip same-url records, never surface the
+    // same document twice in the sidebar.
+    await page.addInitScript(() => {
+      localStorage.setItem('mv:recent', JSON.stringify([
+        { name: 'README', url: `${window.location.origin}/README.md` },
+        { name: 'sample-fa', url: `${window.location.origin}/samples/sample-fa.md` },
+      ]));
+    });
+
+    await page.goto('/');
+    const editor = page.getByRole('textbox');
+    await expect(editor).toHaveValue(/# Qalam/);
+
+    await page.getByRole('button', { name: 'Toggle panel' }).click();
+    const panel = page.locator('#panel');
+    await expect(panel.getByRole('button', { name: 'README', exact: true })).toHaveCount(1);
+    await expect(panel.getByRole('button', { name: 'sample-fa', exact: true })).toHaveCount(1);
+  });
 });
