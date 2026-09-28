@@ -1,7 +1,8 @@
 // Module: app/persistence — the persistence provider: ONE DocumentRepository
 // per tab (default driver + one TabSyncHub + the default lock adapter, built
-// once), booted with init() + the one-shot legacy mv:recent migration before
-// the repository is published through context.
+// once), booted with init() + the one-shot legacy mv:recent migration and
+// the duplicate-placeholder self-heal before the repository is published
+// through context.
 //
 // Boot NEVER fails on storage errors: createDefaultDriver already degrades to
 // the in-memory driver (IndexedDB unavailable/blocked), and any residual
@@ -26,6 +27,7 @@ import {
   createDocumentRepository,
   createMemoryDriver,
   createTabSyncHub,
+  dropDuplicatePlaceholders,
   migrateLegacyLocalStorage,
 } from '../lib/persistence';
 import type { DocumentRepository } from '../lib/persistence';
@@ -57,6 +59,10 @@ async function bootRepository(): Promise<Boot> {
     const repo = createDocumentRepository(driver, { hub, locks: createDefaultLockAdapter() });
     await repo.init();
     await migrateLegacyLocalStorage(store, repo);
+    // Every boot, after the migration: drop empty placeholder records that
+    // duplicate a real record with the same source url (legacy-race self-heal
+    // — a no-op scan on a clean store).
+    await dropDuplicatePlaceholders(repo);
     return { repo, degraded: driver.name !== 'indexeddb' };
   } catch {
     // Unreachable while the drivers behave (createDefaultDriver already falls

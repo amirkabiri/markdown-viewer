@@ -48,6 +48,31 @@ describe('migrateLegacyLocalStorage', () => {
     expect(docs.every((d) => d.content === '')).toBe(true);
   });
 
+  it('skips a recent whose source url the repository already holds', async () => {
+    const storage = makeStorage();
+    storage.setItem(
+      'mv:recent',
+      JSON.stringify([
+        { name: 'README', url: 'https://example.com/README.md' },
+        { name: 'Notes', url: 'https://example.com/notes.md' },
+      ]),
+    );
+    const repo = await makeMigrationRepo();
+    // A real record for the same document already exists (a lost flag, or an
+    // earlier boot loaded it): the placeholder must not duplicate it.
+    await repo.create({
+      name: 'README',
+      content: '# real README',
+      source: { kind: 'url', url: 'https://example.com/README.md' },
+    });
+
+    await migrateLegacyLocalStorage(createMvStore(storage), repo);
+    const docs = await repo.list();
+
+    expect(docs.map((d) => d.name)).toEqual(['README', 'Notes']);
+    expect(docs[0]?.content).toBe('# real README');
+  });
+
   it('persists the flag so a second run is a no-op', async () => {
     const storage = makeStorage();
     storage.setItem(
