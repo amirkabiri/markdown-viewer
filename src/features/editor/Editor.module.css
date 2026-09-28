@@ -1,0 +1,22 @@
+/* The document textarea — ported from legacy style/base.css (#editor). */
+
+.editor {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  resize: none;
+  outline: none;
+  padding: 20px 22px;
+  background: var(--bg-elev);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Vazirmatn", monospace;
+  font-size: 14.5px;
+  line-height: 1.95;
+  tab-size: 4;
+  caret-color: var(--accent);
+}
+
+.editor::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}

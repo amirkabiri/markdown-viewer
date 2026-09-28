@@ -1,0 +1,115 @@
+/* Cheat-sheet dialog — mirrors the Open dialog's overlay/skeleton (RAC
+   Modal + Dialog), with a definition-style shortcut table. */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+}
+
+.dialog {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0 20px 20px;
+  width: min(420px, 92vw);
+  max-height: min(560px, 86vh);
+  overflow-y: auto;
+  background: var(--bg-elev);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  outline: none;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0 8px;
+  /* The head must hug the padded dialog edges (dialog owns the scroll). */
+  margin: 0 -20px 0;
+  padding-inline: 20px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-elev);
+  z-index: 1;
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  font-size: 16px;
+  margin: 0;
+  font-weight: 700;
+}
+
+.closeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.closeBtn:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.group {
+  margin-top: 14px;
+}
+
+.groupTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--bg-subtle);
+  font-size: 13.5px;
+}
+
+.rows li:last-child {
+  border-bottom: 0;
+}
+
+.label {
+  min-width: 0;
+}
+
+.keys {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}

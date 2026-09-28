@@ -1,0 +1,184 @@
+/* Workspace — ported from legacy style/base.css (.workspace, .pane,
+   .pane-head, .pane-label, .doc-name, .statusbar, #divider) and ui.css
+   pane-mode visibility + responsive stacking. */
+
+.workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.editorPane {
+  flex: 0 0 var(--split, 50%);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.previewPane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.paneHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--pane-head-h);
+  padding-inline: 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+
+.paneLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.editorPane:focus-within .paneLabel { color: var(--accent); }
+
+.docName {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: plaintext;
+}
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding-inline: 14px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.statusbar .dot { opacity: 0.6; }
+
+/* --- Divider --- */
+
+.divider {
+  flex: 0 0 7px;
+  cursor: col-resize;
+  position: relative;
+  touch-action: none;
+  background: var(--bg);
+}
+
+.divider::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 3px;
+  width: 1px;
+  background: var(--border);
+  transition: background 0.15s, width 0.15s;
+}
+
+.divider:hover::after,
+.divider.dragging::after {
+  width: 3px;
+  inset-inline-start: 2px;
+  background: var(--accent);
+}
+
+/* --- Pane modes --- */
+
+.modeEditor .previewPane,
+.modeEditor .divider { display: none; }
+.modeEditor .editorPane { flex: 1; }
+
+.modePreview .editorPane,
+.modePreview .divider,
+.modePreview .statusbar { display: none; }
+
+/* --- Responsive --- */
+
+@media (max-width: 880px) {
+  .workspace { flex-direction: column; }
+  .divider { display: none !important; }
+
+  .workspace.modeSplit .editorPane,
+  .workspace.modeEditor .editorPane {
+    flex: 0 0 auto;
+    height: 46vh;
+    border-bottom: 1px solid var(--border);
+  }
+  .workspace.modeSplit .previewPane { flex: 1; }
+  .workspace.modePreview .previewPane { display: flex; }
+}
+
+/* --- R8: readonly-session banner + inline document rename --- */
+
+.lockBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 14px;
+  flex-shrink: 0;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.takeOverBtn {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.15s;
+}
+
+/* Solid accent (not the ghost style): accent text on the banner's
+   accent-soft tint computed to 4.13:1 — axe (correctly) fails it. */
+.takeOverBtn:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  filter: brightness(1.08);
+}
+
+.docNameInput {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  color: var(--text);
+  max-width: 40%;
+  min-width: 90px;
+  direction: ltr;
+  unicode-bidi: plaintext;
+}
+
+/* The name button inherits .docName styling; keep it looking identical. */
+button.docName {
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: text;
+  padding: 0;
+}

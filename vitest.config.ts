@@ -1,11 +1,29 @@
-// Vitest config — unit tests only cover pure modules, so the plain node
-// environment is enough (DOM-touching modules are exercised manually / e2e).
+// Vitest runs two projects:
+//   - "node":  pure library tests (*.test.ts) — fast, no DOM.
+//   - "jsdom": component tests (*.test.tsx) — RTL + jest-dom, see
+//              src/test/setup.ts.
+// Test files are colocated with the code they cover; legacy/ is excluded by
+// construction (include patterns only reach src/).
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    environment: 'node',
-    // Unit tests only — e2e/ holds Playwright specs (run via `pnpm run test:e2e`)
-    include: ['test/**/*.test.ts'],
+    projects: [
+      {
+        test: {
+          name: 'node',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+        },
+      },
+      {
+        test: {
+          name: 'jsdom',
+          environment: 'jsdom',
+          include: ['src/**/*.test.tsx'],
+          setupFiles: ['src/test/setup.ts'],
+        },
+      },
+    ],
   },
 });

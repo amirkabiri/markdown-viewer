@@ -1,0 +1,5 @@
+# pnpm settings (pnpm 11 reads this file instead of the package.json "pnpm" field).
+# Native postinstall scripts must be explicitly allowed; unrs-resolver is the
+# native binding used by eslint-import-resolver-typescript for path resolution.
+allowBuilds:
+  unrs-resolver: true

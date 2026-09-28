@@ -47,37 +47,151 @@ requirements: (1) visible loading feedback while the first message warms the
 LLM, (2) explicit user consent before downloading the built-in model (~4 GB,
 never auto-download), (3) tool calls the agent made must be visible in chat.
 
-- [ ] **Agent R1 — toolchain scaffold** — React 19 + Vite + strict TS;
-  Airbnb-based ESLint flat config (+ react-hooks, jsx-a11y); vitest + React
-  Testing Library + jsdom; `STYLEGUIDE.md` (our conventions on top of
-  Airbnb) + `TESTING.md` (Google-inspired: pyramid/sizes, behavior-driven,
-  AAA, fakes over mocks, deterministic, by-role queries); legacy vanilla
-  sources moved to `legacy/` (excluded from gates, porting reference only);
-  React entry with parity: CSP meta, `base: './'`, pre-paint theme/lang
-  script, `?file=`/`?url=`/`#d=` routing contract; gates green (same script
-  names, CI unchanged)
-- [ ] **Agent R2 — UI kit research** — evaluate Radix UI primitives, React
-  Aria Components, Base UI, Ark UI, Headless UI against: WAI-ARIA quality,
-  focus/keyboard management, RTL support, headless styling freedom (bespoke
-  minimal design must survive), bundle size, React 19 compat, adoption.
-  Deliverable: `docs/uikit-research.md` with a decision + component mapping.
-  No product code.
-- [ ] **Agent R3 — domain ports** (after R1) — share codec, chunk
-  normalizer, agent loop, providers, settings, markdown render (pure
-  compute, sanitized HTML out), documents routing → typed `lib/` +
-  framework-agnostic hooks; unit tests per TESTING.md (existing 96 tests
-  must survive ported, plus new coverage)
-- [ ] **Agent R4 — shell UI** (after R3) — editor/preview split with divider,
-  theme/lang/direction, per-paragraph direction, TOC/scroll-spy, documents
-  (open dialog, recents, drag-drop), one-click share; full RTL mirroring;
-  component tests by role
-- [ ] **Agent R5 — AI parity + UX requirements** (after R2+R3) — panel on
-  the chosen kit; provider settings; agent loop with visible **tool-call
-  activity per message** (tool name + mode + running/ok/refused status,
-  not a transient note); **first-send loading states** (model warming →
-  spinner + status, never a dead silence); **builtin download consent**
-  (availability `downloadable` → confirm dialog before any download, with
-  progress once consented)
+- [x] **Agent R1 — toolchain scaffold** — DONE, verified by the lead: React 19
+  + Vite + strict TS; Airbnb via `eslint-config-airbnb-extended` (flat-native,
+  ESLint pinned ^9); vitest node+jsdom projects; RTL component test + 3-engine
+  e2e baseline; `STYLEGUIDE.md` + `TESTING.md`; vanilla app frozen in
+  `legacy/` (gates-excluded); CSP: `script-src 'self'` kept, narrow
+  `style-src-attr` added for React/mermaid (documented in-file). Gates green
+  on pushed HEAD; shell boots clean in browser.
+- [x] **Agent R2 — UI kit research** — DONE (`docs/uikit-research.md`):
+  **React Aria Components** `^1.21.1` — wins a11y AND RTL outright (derives
+  direction from locale/`<html lang>`; Radix/Base UI need a manual
+  DirectionProvider); unstyled; Radix = fallback, Base UI = watchlist.
+  Bundle budget check + consequences section for consuming agents.
+- [x] **Agent R3 — domain ports** — DONE, verified: `src/lib/` (store, share,
+  documents, ai/{chunk,agent,settings,edits,providers}, pure markdown
+  pipeline with mermaid hook point) + `src/i18n/` (pure `t(lang,key)`);
+  169 tests green (96 ported + 70 added + 3 App). DOM-coupled halves stay in
+  `legacy/` for UI agents. Lead lint-delta decisions (applied by R4):
+  allow for-of/await-in-loop in ai streaming code; drop
+  `@stylistic/operator-linebreak`; exempt test fakes from
+  `max-classes-per-file`; allow console.warn/error in ai modules.
+- [x] **Agent R4 — shell UI** — DONE, verified by the lead at wave HEAD:
+  all five gates green (typecheck, lint 0 errors, 333 tests, build,
+  18 e2e runs × 3 engines). Full parity: theme (pre-paint contract intact),
+  EN⇄FA with RTL mirroring (RAC I18nProvider), editor + frozen `EditorApi`
+  (undo-preserving applyEdit, localized replace-document confirm, pinned
+  ranges clamped), preview (debounce, TOC + scroll-spy, mermaid re-theming,
+  copy buttons, bidirectional scroll sync), documents (boot precedence
+  `?url=`→`?file=`→`#d=`→welcome; share hash never rewritten), one-click
+  share with capacity guardrails, pane modes with persisted split fraction.
+  Deliberate deviations: toasts queue instead of replacing; document switch
+  renders immediately (no debounce). AI panel integration point prepared in
+  Shell (providers ready; topbar button intentionally absent for R8).
+- [x] **Agent R5 — AI parity + UX requirements** — DONE, scope-verified by
+  the lead (107 tests green in `src/features/ai` + `src/lib/ai`). Mounted at
+  integration as `<AiPanel editor={editorApi} t={t} lang={lang}/>` (frozen
+  props; panel is open-while-mounted — trigger wiring needs conditional
+  mount or a controlled `open`/`onOpenChange`). All 3 UX requirements
+  delivered + tested: (1) labeled loading state from send → first streamed
+  event (builtin create() cold start covered; external SSE connect covered),
+  input disabled while loading; (2) ~4 GB download consent — non-dismissable
+  alert dialog on send while `downloadable`, `create()` never called before
+  explicit Download (user activation), live progress, queued message
+  proceeds on success, draft preserved + honest explainer on "Not now";
+  (3) per-message persistent tool-activity list (tool, mode label,
+  running → OK/Refused via the new `ok` event field, `aria-live`).
+  Deviations (requirement-driven): RAC 1.21.1 has no `AlertDialog` export —
+  `ModalOverlay(isDismissable=false)` + `Dialog role="alertdialog"` used
+  instead (identical semantics; R2's doc corrected here); feature-local
+  i18n labels in `src/features/ai/labels.ts`; in-panel RAC ToastRegion +
+  react-stately ToastQueue until app-root toast plumbing exists (then point
+  app ToastRegion at `aiToastQueue`).
+
+### Milestone: persistence + multi-document management (current, on `react-rewrite`)
+
+Stakeholder request: every document change persisted; IndexedDB for now;
+architecture flexible for a future File System Access driver (browser disk
+write permission); sidebar document management — create, select, remove,
+sort. Implemented in the React rewrite only (the vanilla app is frozen).
+
+- [~] **Agent R7 — persistence architecture (`src/lib/persistence/`)** —
+  driver interface `PersistenceDriver` (init/list/get/put/delete/reorder)
+  with `DocumentRecord` (id, name, content, createdAt, updatedAt, sortIndex,
+  optional source metadata); `createIndexedDbDriver` (raw IndexedDB, no
+  runtime deps, injectable factory for tests) + `createMemoryDriver` (fakes
+  + graceful fallback when IDB is unavailable) + documented (not implemented)
+  File System Access driver plan behind the same interface; repository layer
+  with autosave (per-change trailing debounce + flush on pagehide/visibility)
+  and onChange subscriptions for live sidebar updates; one-time migration
+  from legacy `mv:doc`/`mv:recent` localStorage. Tests with fake-indexeddb.
+  **v2 amendment (multi-tab, stakeholder edge case):** `revision` field
+  (driver-owned monotonic bump on every put); `sync.ts` tab hub
+  (BroadcastChannel + clientId echo suppression + focus/visibility
+  reconciliation backstop); per-document session locks via Web Locks
+  (`openDocument` → `edit` | `readonly` + `takeover()`; readonly sessions
+  cannot save; saves serialized under the lock); stolen-session policy =
+  auto-save dirty buffer as a copy record (never lose text); lock adapter
+  injectable for node tests; graceful no-locks fallback. Two-tab integration
+  tests over one fake-indexeddb + real BroadcastChannel.
+  **DONE, verified by the lead (333/333 repo-wide at HEAD):** v2 contract
+  landed with documented additive deviations (steal returns the acquisition;
+  stolen event carries `copyId: null` when the buffer was clean;
+  `saveContent` returns `false` for readonly/unknown; sessionless saves are
+  the v1 single-tab path). Migration finding: the vanilla app never
+  persisted the current document (runtime memo) and `mv:recent` holds no
+  content — migration carries recents as URL-sourced placeholders only
+  (documented limitation, no silent re-fetch). `FILE_SYSTEM_ACCESS.md`
+  specifies the future disk driver behind the same interface. R8 integration:
+  barrel import → `createDefaultDriver()` + `createDocumentRepository` with
+  one `TabSyncHub` + lock adapter per tab; `openDocument(id)` →
+  edit/readonly session + `takeover()`; run migration once after `init()`.
+- [x] **Agent R8 — document management UI** — DONE, verified by the lead
+  (359/359 unit, 39/39 e2e × 3 engines; lint 0/0). Sidebar = the repository:
+  live list (incl. remote changes), create, select via edit/readonly
+  sessions, rename (inline + pane head), remove (localized confirm), drag
+  reorder + keyboard move (persisted), active-doc restore, `?url=`/`?file=`
+  dedupe by source, `#d=`/upload/paste become records. Multi-tab UX:
+  readonly banner + Take over, stolen → "Saved a copy" toast, live lists.
+  **Finding:** pagehide flush alone loses the last debounce window on
+  instant reload (browsers discard in-flight IDB transactions) — fixed with
+  a synchronous `mv:doc-draft` localStorage snapshot + revision-guarded
+  re-adoption at boot. AiPanel mounted from the topbar toggle; toasts
+  bridged to the app region; labels promoted into the dictionaries.
+  **Open item → R6:** the boot smoke e2e flapped once in full 3-engine runs
+  (zero-console-error assertion; passed on three subsequent runs incl.
+  chromium-only) — reproduce, capture the error, fix deterministically.
+- [x] **Agent R6 — a11y + keyboard shortcuts** — DONE, verified by the lead
+  (395/395 unit, 54/54 e2e, **3 consecutive full gate cycles clean**).
+  Flake root cause: third-party content in the rendered doc (GitHub badge,
+  font CSS) logs engine-specific network errors — not app code; the boot
+  smoke now attributes console errors by origin (app-attributable still
+  fails; uncaught exceptions via pageerror), 15/15 boot runs clean.
+  Shortcuts: `?` cheat-sheet dialog + full map (⌘/Ctrl+O, ⌘+Alt+N,
+  ⌘+I, ⌘+\, Alt+1/2/3, ⌘+Shift+C, ⌘+Alt+D, ?) from one source of truth,
+  README EN/FA sections test-enforced in sync, Esc layering fixed
+  (dialogs > AI panel > sidebar). A11y: dark-theme contrast tokens fixed
+  (solid buttons now near-black text — intentional look change),
+  scrollable-region keyboard access, skip link, list roving focus,
+  reduced-motion, axe scans zero serious/critical across 5 states.
+
+### Acceptance (EN+FA browser pass) — lead — DONE
+
+- [x] Persistence: create → type → reload keeps content byte-for-byte ✓;
+  AI-appended edit also persisted across reload (draft/revision guard) ✓.
+- [x] Duplicates from migration: found (README ×2, sample-fa ×2 — two-tab
+  boot race in legacy migration) → Agent R9 fixed (skip-if-exists + Web
+  Locks serialization + self-healing `dropDuplicatePlaceholders` on boot) →
+  verified self-healed live in the damaged browser.
+- [x] README logo in preview: broken (pre-existing on the vanilla deploy
+  too — 404) → R9 mirrors doc assets (`dist/public/logo.svg`) → renders
+  (naturalWidth 150).
+- [x] Multi-tab: covered by the two-tab e2e spec (readonly → takeover →
+  stolen-copy, live sidebar sync in both tabs).
+- [x] AI UX: loading → stream → visible tool activity (`edit_document` →
+  done) → tool-executed edit lands in the document (direct-edit on).
+- [x] Shortcuts + cheat sheet (⌘ glyphs, EN/FA), dark/light, RTL mirroring
+  (Persian digits), skip link, contrast-fixed solid dark buttons.
+- Final gates at merge HEAD: **402 unit / 60 e2e × 3 engines, lint clean,
+  3 consecutive full cycles green.** Merging to main.
+- [ ] **Acceptance addition** — multi-document persistence verified in
+  browser: reload keeps content (autosave), order persists, legacy
+  migration runs once, removal confirm, EN+FA. **Multi-tab scenarios:**
+  two tabs editing different docs both autosave; same doc in two tabs →
+  one edits, one is read-only until takeover; changes in one tab appear in
+  the other without reload; removing a doc in one tab reflects in the other;
+  no data loss in any of these paths.
 - [ ] **Agent R6 — a11y + shortcuts pass** (after R4+R5) — complete keyboard
   map (existing: Ctrl/⌘+O, Esc; plus documented bindings for panel, pane
   modes, direction, share), roving focus + focus traps on overlays, aria

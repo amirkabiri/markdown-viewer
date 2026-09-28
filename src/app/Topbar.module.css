@@ -1,0 +1,127 @@
+/* Top bar — ported from legacy style/base.css (.topbar, .brand, buttons,
+   segmented control) and ui.css responsive icon-only rules. */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--header-h);
+  padding-inline: 10px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--bg-elev) 85%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 60;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 15.5px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.brand svg { color: var(--accent); }
+.brand:hover { background: var(--bg-subtle); }
+
+.spacer { flex: 1; }
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.iconBtn:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding-inline: 13px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn:hover { background: var(--bg-subtle); }
+
+.btnPrimary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.btnPrimary:hover {
+  filter: brightness(1.08);
+  background: var(--accent);
+}
+
+.ghost { background: transparent; }
+
+.langBtn {
+  min-width: 44px;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-subtle);
+  border-radius: 9px;
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.segment:hover { color: var(--text); }
+
+.segmentActive {
+  background: var(--bg-elev);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 880px) {
+  .btn span { display: none; }   /* icon-only Open button */
+  .btn { padding-inline: 10px; }
+  .brand span { display: none; }
+}
