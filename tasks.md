@@ -166,16 +166,25 @@ sort. Implemented in the React rewrite only (the vanilla app is frozen).
   scrollable-region keyboard access, skip link, list roving focus,
   reduced-motion, axe scans zero serious/critical across 5 states.
 
-### Acceptance (EN+FA browser pass) — lead
+### Acceptance (EN+FA browser pass) — lead — DONE
 
-- [ ] Persistence: create → type → reload keeps content; rename/remove/
-  reorder persist; migration path honest for legacy profiles.
-- [ ] Multi-tab: same doc in two tabs → readonly banner + Take over;
-  stolen side keeps a copy; sidebar updates live in both.
-- [ ] AI UX: loading state on first mock-provider send; tool-call activity
-  visible (running → OK, lands in the document with direct-edit on).
-- [ ] Shortcuts + cheat sheet in EN and FA; dark/light themes; RTL
-  mirroring; skip link; solid dark-theme buttons (new look).
+- [x] Persistence: create → type → reload keeps content byte-for-byte ✓;
+  AI-appended edit also persisted across reload (draft/revision guard) ✓.
+- [x] Duplicates from migration: found (README ×2, sample-fa ×2 — two-tab
+  boot race in legacy migration) → Agent R9 fixed (skip-if-exists + Web
+  Locks serialization + self-healing `dropDuplicatePlaceholders` on boot) →
+  verified self-healed live in the damaged browser.
+- [x] README logo in preview: broken (pre-existing on the vanilla deploy
+  too — 404) → R9 mirrors doc assets (`dist/public/logo.svg`) → renders
+  (naturalWidth 150).
+- [x] Multi-tab: covered by the two-tab e2e spec (readonly → takeover →
+  stolen-copy, live sidebar sync in both tabs).
+- [x] AI UX: loading → stream → visible tool activity (`edit_document` →
+  done) → tool-executed edit lands in the document (direct-edit on).
+- [x] Shortcuts + cheat sheet (⌘ glyphs, EN/FA), dark/light, RTL mirroring
+  (Persian digits), skip link, contrast-fixed solid dark buttons.
+- Final gates at merge HEAD: **402 unit / 60 e2e × 3 engines, lint clean,
+  3 consecutive full cycles green.** Merging to main.
 - [ ] **Acceptance addition** — multi-document persistence verified in
   browser: reload keeps content (autosave), order persists, legacy
   migration runs once, removal confirm, EN+FA. **Multi-tab scenarios:**
