@@ -1,7 +1,7 @@
 // Vite config — React app (react-rewrite).
 // Site is deployed under /markdown-viewer/ on GitHub Pages, so all asset URLs
 // must stay relative (base: './').
-import { cpSync, existsSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
@@ -15,6 +15,11 @@ const rootDir = fileURLToPath(new URL('.', import.meta.url));
  * source of truth, but only dist/ is deployed — so copy them into dist/ at
  * build time to keep the behavior identical to the old
  * deploy-from-branch-root setup.
+ *
+ * The README's own body references repo-relative assets
+ * (`<img src="public/logo.svg">`); the preview resolves that against the
+ * page URL, so the file is mirrored to dist/public/logo.svg too (Vite's
+ * public/ copy at the dist root stays for anything addressing it there).
  */
 function copySiteDocuments(): Plugin {
   return {
@@ -24,6 +29,11 @@ function copySiteDocuments(): Plugin {
       const out = `${rootDir}dist`;
       if (existsSync(`${rootDir}README.md`)) cpSync(`${rootDir}README.md`, `${out}/README.md`);
       if (existsSync(`${rootDir}samples`)) cpSync(`${rootDir}samples`, `${out}/samples`, { recursive: true });
+      const logo = `${rootDir}public/logo.svg`;
+      if (existsSync(logo)) {
+        mkdirSync(`${out}/public`, { recursive: true });
+        cpSync(logo, `${out}/public/logo.svg`);
+      }
     },
   };
 }
