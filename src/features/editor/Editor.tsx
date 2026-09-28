@@ -14,10 +14,12 @@ export interface EditorProps {
   dir: 'ltr' | 'rtl';
   ariaLabel: string;
   placeholder: string;
+  /** Non-editable document (readonly session — locked by another tab). */
+  readOnly: boolean;
 }
 
 export default function Editor({
-  controller, dir, ariaLabel, placeholder,
+  controller, dir, ariaLabel, placeholder, readOnly,
 }: EditorProps) {
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -37,6 +39,7 @@ export default function Editor({
       spellCheck={false}
       autoCapitalize="off"
       autoComplete="off"
+      readOnly={readOnly}
       aria-label={ariaLabel}
       placeholder={placeholder}
       onInput={() => controller.syncFromTextarea()}

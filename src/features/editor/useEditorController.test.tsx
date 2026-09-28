@@ -22,7 +22,7 @@ function Inner({ capture }: { capture: (c: EditorController) => void }) {
   useEffect(() => {
     capture(ctrl);
   }, [capture, ctrl]);
-  return <Editor controller={ctrl} dir="ltr" ariaLabel="Markdown source" placeholder="# Start writing…" />;
+  return <Editor controller={ctrl} dir="ltr" ariaLabel="Markdown source" placeholder="# Start writing…" readOnly={false} />;
 }
 
 function Harness({ lang }: { lang: 'en' | 'fa' }) {
@@ -214,5 +214,50 @@ describe('Tab key', () => {
 
     expect(textarea().value).toBe('a  b');
     expect(textarea().selectionStart).toBe(3);
+  });
+});
+
+describe('autosave callback (onDocChange)', () => {
+  function InnerWithChange({ onDocChange }: { onDocChange: (text: string) => void }) {
+    const ctrl = useEditorController({ onDocChange });
+    useEffect(() => {
+      ctl = ctrl;
+    }, [ctrl]);
+    return (
+      <Editor
+        controller={ctrl}
+        dir="ltr"
+        ariaLabel="Markdown source"
+        placeholder=""
+        readOnly={false}
+      />
+    );
+  }
+
+  function HarnessWithChange({ onDocChange }: { onDocChange: (text: string) => void }) {
+    return (
+      <I18nProvider lang="en">
+        <InnerWithChange onDocChange={onDocChange} />
+      </I18nProvider>
+    );
+  }
+
+  it('fires on user typing, tab-insert and AI edits — never on loadDocument', async () => {
+    const onDocChange = vi.fn();
+    render(<HarnessWithChange onDocChange={onDocChange} />);
+
+    act(() => controller().loadDocument('base'));
+    expect(onDocChange).not.toHaveBeenCalled(); // loading is not an edit
+
+    await userEvent.type(textarea(), '!');
+    expect(onDocChange).toHaveBeenLastCalledWith('base!');
+
+    textarea().focus();
+    act(() => textarea().setSelectionRange(5, 5));
+    await userEvent.keyboard('{Tab}');
+    expect(onDocChange).toHaveBeenLastCalledWith('base!  ');
+
+    act(() => controller().api.applyEdit('append', '?'));
+    expect(onDocChange).toHaveBeenLastCalledWith('base!  ?');
   });
 });

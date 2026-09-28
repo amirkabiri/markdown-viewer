@@ -6,6 +6,12 @@
 // applyEdit replicates the legacy mechanism exactly: execCommand insertText
 // first (preserves the native undo stack), setRangeText fallback, and a
 // window.confirm only for replace-document (aiReplaceDocConfirm).
+//
+// Autosave wiring (additive, R8): an optional onDocChange callback is fired
+// on every USER- or AGENT-driven text change (input, tab-insert, applyEdit) —
+// deliberately NOT on loadDocument (loading a document is not an edit). The
+// app forwards it to the document repository's debounced saveContent; the
+// EditorApi/EditorController shapes are unchanged.
 import {
   useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
@@ -15,6 +21,15 @@ import { useT } from '../../app/i18n';
 import type { EditMode } from '../../lib/ai/edits';
 
 import type { EditorApi } from './api';
+
+export interface EditorControllerOptions {
+  /**
+   * Fired on every document text change (typing, tab-insert, AI edit) with
+   * the new full text — not on loadDocument. Read through a ref at call
+   * time, so callback identity is irrelevant.
+   */
+  onDocChange?: (text: string) => void;
+}
 
 export interface EditorController {
   /** The frozen api — stable identity across renders (the EditorProvider value). */
@@ -50,7 +65,7 @@ function targetRange(mode: EditMode, a: number, b: number, len: number): [number
   return [a, a]; // cursor
 }
 
-export function useEditorController(): EditorController {
+export function useEditorController(opts: EditorControllerOptions = {}): EditorController {
   const t = useT();
   const elRef = useRef<HTMLTextAreaElement | null>(null);
   const textRef = useRef('');
@@ -63,6 +78,17 @@ export function useEditorController(): EditorController {
     tRef.current = t;
   }, [t]);
 
+  // Same call-time pattern for the autosave listener: options are read at
+  // change time, so callers may pass an unstable closure.
+  const optsRef = useRef(opts);
+  useEffect(() => {
+    optsRef.current = opts;
+  }, [opts]);
+
+  const notifyDocChange = useCallback((value: string) => {
+    optsRef.current.onDocChange?.(value);
+  }, []);
+
   const attachTextarea = useCallback((el: HTMLTextAreaElement | null) => {
     elRef.current = el;
   }, []);
@@ -72,7 +98,8 @@ export function useEditorController(): EditorController {
     if (!el) return;
     textRef.current = el.value;
     setText(el.value);
-  }, []);
+    notifyDocChange(el.value);
+  }, [notifyDocChange]);
 
   const loadDocument = useCallback((next: string) => {
     const el = elRef.current;
@@ -129,8 +156,9 @@ export function useEditorController(): EditorController {
     if (!done) el.setRangeText(inserted, insStart, insEnd, 'end');
     textRef.current = el.value;
     setText(el.value); // input-equivalent state update: preview/counts stay live
+    notifyDocChange(el.value);
     return true;
-  }, []);
+  }, [notifyDocChange]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Tab' && !e.shiftKey) {
@@ -141,8 +169,9 @@ export function useEditorController(): EditorController {
       el.setRangeText('  ', s, en, 'end');
       textRef.current = el.value;
       setText(el.value);
+      notifyDocChange(el.value);
     }
-  }, []);
+  }, [notifyDocChange]);
 
   const focus = useCallback(() => {
     elRef.current?.focus();
