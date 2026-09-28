@@ -3,28 +3,48 @@ import {
 } from '@playwright/test';
 
 /**
- * Network-layer resource noise: "Failed to load resource: net::ERR_*" console
- * errors come from the browser's network stack, not from app code. The boot
- * page makes exactly one cross-origin fetch — the Vazirmatn font CSS from
- * cdn.jsdelivr.net (see index.html) — and under parallel 3-engine load that
- * request was observed to fail once, tripping this spec while three reruns
- * passed (not reproducible in six consecutive local full-suite runs either).
- * A dropped webfont is an environment artifact, not a regression: the font
- * stack falls back to system fonts by design. Everything that CAN indicate a
- * real regression still fails the test:
- *   - CSP violations log "Refused to …" console errors (not the net pattern),
- *   - a failed same-origin app asset breaks the landmark assertions below
- *     (the shell cannot boot without it),
- *   - every uncaught exception still arrives as a pageError.
+ * Boot-page console errors split into two classes:
+ *
+ * 1. APP errors — a CSP violation fighting the meta policy, or any uncaught
+ *    exception. These are regressions and MUST fail the suite. CSP refusals
+ *    are reported with the incurring document as their location (the app
+ *    origin); uncaught exceptions arrive on the separate pageerror channel.
+ *
+ * 2. ENVIRONMENT noise from the page's third-party content — the boot
+ *    document is this repo's README (external CI-badge image) and index.html
+ *    pulls the Vazirmatn font CSS from cdn.jsdelivr.net. Under real-network
+ *    variance those report through the console in engine-specific shapes and
+ *    flaked this suite exactly once in a full 3-engine run (three reruns
+ *    clean; six subsequent local full runs clean) before the second
+ *    signature reproduced live: chromium logs "Failed to load resource:
+ *    net::ERR_*"; firefox logs cross-site cookie rejections from
+ *    github.com's badge.svg as "[JavaScript Error: \"Cookie … rejected …\"]"
+ *    attributed to the REMOTE file. Neither can be caused by app code, and
+ *    the app degrades by design (font falls back; a broken image renders as
+ *    a broken image). They are ignored — but only when attributed to a
+ *    foreign origin or the network layer, so own-origin app errors always
+ *    count.
  */
-const NETWORK_RESOURCE_NOISE = /^Failed to load resource/;
+function isAppConsoleError(message: ConsoleMessage, page: Page): boolean {
+  // Chromium/WebKit network-layer resource failures (no app code involved;
+  // a genuinely broken same-origin asset fails the landmark assertions
+  // below anyway, because the shell cannot boot without it).
+  if (/^Failed to load resource/.test(message.text())) return false;
+  const file = message.location()?.url ?? '';
+  if (!file) return true;
+  try {
+    return new URL(file).origin === new URL(page.url()).origin;
+  } catch {
+    return true; // unparseable location — count it, fail loud
+  }
+}
 
 /** Collect console errors and uncaught page errors so a test can assert none occurred. */
 function trackBrowserErrors(page: Page): { consoleErrors: string[]; pageErrors: string[] } {
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   page.on('console', (message: ConsoleMessage) => {
-    if (message.type() === 'error' && !NETWORK_RESOURCE_NOISE.test(message.text())) {
+    if (message.type() === 'error' && isAppConsoleError(message, page)) {
       consoleErrors.push(message.text());
     }
   });
