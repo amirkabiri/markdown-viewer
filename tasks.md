@@ -152,12 +152,30 @@ sort. Implemented in the React rewrite only (the vanilla app is frozen).
   **Open item → R6:** the boot smoke e2e flapped once in full 3-engine runs
   (zero-console-error assertion; passed on three subsequent runs incl.
   chromium-only) — reproduce, capture the error, fix deterministically.
-- [ ] **Agent R6 — a11y + keyboard shortcuts** — full keyboard map (famous
-  conventions, no browser conflicts, RTL-aware) implemented in one shortcuts
-  module + `?` cheat-sheet dialog; axe scans (zero serious/critical) across
-  main views + dialogs; skip-link, focus-visible, icon-button labels, list
-  roving focus, reduced-motion, contrast both themes; README documents the
-  shortcuts; the e2e flake fix above.
+- [x] **Agent R6 — a11y + keyboard shortcuts** — DONE, verified by the lead
+  (395/395 unit, 54/54 e2e, **3 consecutive full gate cycles clean**).
+  Flake root cause: third-party content in the rendered doc (GitHub badge,
+  font CSS) logs engine-specific network errors — not app code; the boot
+  smoke now attributes console errors by origin (app-attributable still
+  fails; uncaught exceptions via pageerror), 15/15 boot runs clean.
+  Shortcuts: `?` cheat-sheet dialog + full map (⌘/Ctrl+O, ⌘+Alt+N,
+  ⌘+I, ⌘+\, Alt+1/2/3, ⌘+Shift+C, ⌘+Alt+D, ?) from one source of truth,
+  README EN/FA sections test-enforced in sync, Esc layering fixed
+  (dialogs > AI panel > sidebar). A11y: dark-theme contrast tokens fixed
+  (solid buttons now near-black text — intentional look change),
+  scrollable-region keyboard access, skip link, list roving focus,
+  reduced-motion, axe scans zero serious/critical across 5 states.
+
+### Acceptance (EN+FA browser pass) — lead
+
+- [ ] Persistence: create → type → reload keeps content; rename/remove/
+  reorder persist; migration path honest for legacy profiles.
+- [ ] Multi-tab: same doc in two tabs → readonly banner + Take over;
+  stolen side keeps a copy; sidebar updates live in both.
+- [ ] AI UX: loading state on first mock-provider send; tool-call activity
+  visible (running → OK, lands in the document with direct-edit on).
+- [ ] Shortcuts + cheat sheet in EN and FA; dark/light themes; RTL
+  mirroring; skip link; solid dark-theme buttons (new look).
 - [ ] **Acceptance addition** — multi-document persistence verified in
   browser: reload keeps content (autosave), order persists, legacy
   migration runs once, removal confirm, EN+FA. **Multi-tab scenarios:**
