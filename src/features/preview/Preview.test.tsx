@@ -1,5 +1,6 @@
 // Component tests for <Preview /> — injection, error states, copy buttons,
-// md-link interception, the direction pass and the mermaid failure UI.
+// md-link interception, the direction pass, the mermaid failure UI, and the
+// document-switch scroll gating (typing keeps the scroll position).
 // mermaid is vi.mock'ed (TESTING.md last resort, justified: a ~2 MB
 // browser-only rendering SDK — jsdom has no SVG geometry), scripted as a
 // fake whose parse/run behavior each test controls.
@@ -43,12 +44,14 @@ interface HarnessOptions {
   dirMode: 'auto' | 'ltr' | 'rtl';
   dir: 'ltr' | 'rtl';
   theme: 'light' | 'dark';
+  /** Document identity — drives the scroll reset + hash-jump gating. */
+  docIdentity: string;
   onSpyChange: (id: string | null) => void;
   onOpenDocLink: (href: string) => void;
 }
 
 function Harness({
-  state, dirMode, dir, theme, onSpyChange, onOpenDocLink,
+  state, dirMode, dir, theme, docIdentity, onSpyChange, onOpenDocLink,
 }: HarnessOptions) {
   const scrollRef = createRef<HTMLDivElement>();
   return (
@@ -58,7 +61,7 @@ function Harness({
         dir={dir}
         dirMode={dirMode}
         theme={theme}
-        docIdentity="doc"
+        docIdentity={docIdentity}
         scrollRef={scrollRef}
         onSpyChange={onSpyChange}
         onOpenDocLink={onOpenDocLink}
@@ -74,6 +77,7 @@ function renderHarness(overrides: Partial<HarnessOptions> & { state: MarkdownPre
       dirMode="ltr"
       dir="ltr"
       theme="light"
+      docIdentity="doc"
       onSpyChange={vi.fn()}
       onOpenDocLink={vi.fn()}
       {...overrides}
@@ -101,6 +105,7 @@ describe('<Preview /> injection', () => {
         dirMode="ltr"
         dir="ltr"
         theme="dark"
+        docIdentity="doc"
         onSpyChange={vi.fn()}
         onOpenDocLink={vi.fn()}
         state={state}
@@ -199,6 +204,113 @@ describe('<Preview /> scroll spy', () => {
     await waitFor(() => {
       expect(onSpyChange).toHaveBeenCalledWith('two');
     });
+  });
+});
+
+describe('<Preview /> document-switch scrolling', () => {
+  it('keeps the container scroll across typing-driven html updates (same identity)', () => {
+    const { rerender } = renderHarness({
+      docIdentity: 'doc-a',
+      state: makeState({ html: '<p>one</p>' }),
+    });
+    const container = article().parentElement as HTMLElement;
+    act(() => {
+      container.scrollTop = 500;
+    });
+
+    // Same document, new html: exactly what a 300 ms debounced preview
+    // update while typing produces. The view must not move.
+    rerender(
+      <Harness
+        dirMode="ltr"
+        dir="ltr"
+        theme="light"
+        docIdentity="doc-a"
+        onSpyChange={vi.fn()}
+        onOpenDocLink={vi.fn()}
+        state={makeState({ html: '<p>one</p><p>two</p>' })}
+      />,
+    );
+
+    expect(container.scrollTop).toBe(500);
+  });
+
+  it('resets the container scroll when the document identity changes', () => {
+    const { rerender } = renderHarness({
+      docIdentity: 'doc-a',
+      state: makeState({ html: '<p>one</p>' }),
+    });
+    const container = article().parentElement as HTMLElement;
+    act(() => {
+      container.scrollTop = 500;
+    });
+
+    rerender(
+      <Harness
+        dirMode="ltr"
+        dir="ltr"
+        theme="light"
+        docIdentity="doc-b"
+        onSpyChange={vi.fn()}
+        onOpenDocLink={vi.fn()}
+        state={makeState({ html: '<h2 id="next">Other doc</h2>' })}
+      />,
+    );
+
+    expect(container.scrollTop).toBe(0);
+  });
+
+  it('jumps to the location hash once per document — typing updates never re-trigger it', () => {
+    // jsdom has no layout engine: no requestAnimationFrame and no
+    // scrollIntoView. Both are stubbed at the DOM boundary so the jump
+    // itself is observable (restored in the finally below).
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      window.history.replaceState(null, '', '/#goal');
+      // Async-arrival shape (a deep link like ?file=README.md#goal): the
+      // identity is already set while the article is still empty.
+      const { rerender } = renderHarness({
+        docIdentity: 'doc-a',
+        state: makeState({ html: '' }),
+      });
+      expect(scrollIntoView).not.toHaveBeenCalled();
+
+      // The content lands (same identity) — now the target exists: jump.
+      rerender(
+        <Harness
+          dirMode="ltr"
+          dir="ltr"
+          theme="light"
+          docIdentity="doc-a"
+          onSpyChange={vi.fn()}
+          onOpenDocLink={vi.fn()}
+          state={makeState({ html: '<h2 id="goal">Goal</h2>' })}
+        />,
+      );
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+
+      // A typing-driven html update must not scroll again.
+      rerender(
+        <Harness
+          dirMode="ltr"
+          dir="ltr"
+          theme="light"
+          docIdentity="doc-a"
+          onSpyChange={vi.fn()}
+          onOpenDocLink={vi.fn()}
+          state={makeState({ html: '<h2 id="goal">Goal</h2><p>more</p>' })}
+        />,
+      );
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
   });
 });
 

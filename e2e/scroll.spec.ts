@@ -12,6 +12,12 @@ import { expect, test, type Page } from '@playwright/test';
  *
  * Layout lives in CSS, so per TESTING.md these assertions are e2e territory:
  * a jsdom component test has no layout engine to assert them with.
+ *
+ * The "typing keeps the scroll position" tests guard the second regression
+ * class: the preview's document-switch reset must fire on a document switch
+ * only. Gating it on the debounced preview html instead dragged both panes
+ * back to the top on every typing pause (the reset scrolled the preview,
+ * and the preview→editor scroll sync mirrored 0 into the editor).
  */
 
 /** Rounding slack for box measurements against the viewport. */
@@ -22,6 +28,13 @@ function previewScroll(page: Page) {
   return page.locator('div:has(> article)');
 }
 
+/** The editor's vertical scroll fraction (0 = top, 1 = bottom). */
+function editorFraction(page: Page) {
+  return page.getByRole('textbox').evaluate(
+    (el) => el.scrollTop / Math.max(1, el.scrollHeight - el.clientHeight),
+  );
+}
+
 /** Boots the README document and waits for editor + preview to render it. */
 async function bootReadme(page: Page) {
   await page.goto('/');
@@ -29,6 +42,20 @@ async function bootReadme(page: Page) {
   await expect(editor).toHaveValue(/# Qalam/);
   await expect(page.locator('article h1')).toHaveText(/Qalam/);
   return editor;
+}
+
+/** Types text at the editor caret and waits for the debounced preview update
+ *  that proves the typing-driven re-render committed (no sleeps — the marker
+ *  text only appears in the article once the debounce fired). The marker is
+ *  passed as an evaluate argument: page-side functions are serialized, so
+ *  they cannot close over Node variables. */
+async function typeAndAwaitPreview(page: Page, text: string) {
+  await page.keyboard.type(text);
+  const marker = text.trim();
+  await expect.poll(async () => page.locator('article').evaluate(
+    (el, m) => el.textContent?.includes(m) ?? false,
+    marker,
+  ), { timeout: 5_000 }).toBe(true);
 }
 
 test.describe('document scrolling', () => {
@@ -110,5 +137,141 @@ test.describe('document scrolling', () => {
     await expect(footer).toBeVisible();
     const footerBox = await footer.boundingBox();
     expect(Math.abs(footerBox!.y + footerBox!.height - viewportHeight)).toBeLessThanOrEqual(EPS_PX);
+  });
+});
+
+test.describe('typing keeps the scroll position', () => {
+  test('a typing pause does not drag the panes back to the top', async ({ page }) => {
+    const editor = await bootReadme(page);
+    const scroll = previewScroll(page);
+
+    // Focus FIRST: webkit scrolls a focused textarea to its caret (top, at
+    // this point) and the scroll sync mirrors that into the preview — so
+    // the focus must land before the panes are parked, or that mirror
+    // drags them back to the top mid-test.
+    await editor.focus();
+    await editor.evaluate((el) => {
+      if (!(el instanceof HTMLTextAreaElement)) throw new Error('editor is not a textarea');
+      el.setSelectionRange(el.value.length, el.value.length);
+      // eslint-disable-next-line no-param-reassign
+      el.scrollTop = el.scrollHeight;
+    });
+
+    // Park BOTH panes at their bottom (the preview drag mirrors into the
+    // editor via scroll sync) — the stakeholder repro: type while scrolled
+    // to the bottom.
+    await scroll.evaluate((el) => {
+      // eslint-disable-next-line no-param-reassign
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect.poll(() => editorFraction(page), { timeout: 5_000 }).toBeGreaterThan(0.8);
+
+    // Type through THREE debounce windows: each marker only appears in the
+    // article once its 300 ms preview re-render committed (no sleeps), and
+    // by the third marker the 60 ms scroll-sync echo of the earlier commits
+    // has certainly fired — the buggy reset cannot hide between polls.
+    await typeAndAwaitPreview(page, ' ZMARKERONE');
+    await typeAndAwaitPreview(page, ' ZMARKERTWO');
+    await typeAndAwaitPreview(page, ' ZMARKERTHREE');
+
+    // Content and caret survive; ONLY the view must not jump: the editor
+    // stays scrolled (> 80% of its range) and the preview stays scrolled.
+    expect(await editorFraction(page)).toBeGreaterThan(0.8);
+    const previewTop = await scroll.evaluate((el) => el.scrollTop);
+    expect(previewTop).toBeGreaterThan(0);
+  });
+
+  test('switching documents still resets the preview and editor to the top', async ({ page }) => {
+    const editor = await bootReadme(page);
+    const scroll = previewScroll(page);
+    const panel = page.locator('#panel');
+
+    // Switch OUT to the short feature tour first, then do the asserted
+    // switch BACK to the taller README: a textarea scrolled deep into a
+    // SHORTER document fires one clamp scroll event when the shorter
+    // content is loaded into it, and that stale event re-mirrors the old
+    // fraction through the scroll sync AFTER the reset (a Workspace sync
+    // race orthogonal to the Preview gating under test). Sample-en →
+    // README grows the content, so the carried-over scrollTop stays valid
+    // and no clamp event can race the reset.
+    await page.getByRole('button', { name: 'Toggle panel' }).click();
+    await panel.getByRole('link', { name: 'Feature tour (EN)' }).click();
+    await expect(page.locator('article h1')).toHaveText(/Feature Tour/);
+    await expect(editor).not.toHaveValue(/# Qalam/);
+
+    // Stamp every pane scroll so quiescence is observable (dataset, not a
+    // closure — page-side functions are serialized, so they cannot close
+    // over Node variables).
+    await scroll.evaluate((el) => {
+      el.addEventListener('scroll', () => {
+        document.documentElement.dataset.mvPreviewScroll = String(Date.now());
+      });
+    });
+    await editor.evaluate((el) => {
+      el.addEventListener('scroll', () => {
+        document.documentElement.dataset.mvEditorScroll = String(Date.now());
+      });
+    });
+
+    // Park both panes at the bottom (the preview drag mirrors into the
+    // editor via scroll sync) — the reset must clear BOTH.
+    await scroll.evaluate((el) => {
+      // eslint-disable-next-line no-param-reassign
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect
+      .poll(() => editor.evaluate((el) => el.scrollTop), { timeout: 5_000 })
+      .toBeGreaterThan(0);
+
+    // The scroll sync suppresses echo scrolls for 60 ms; if the switch lands
+    // inside that window, the reset's mirror into the editor gets eaten and
+    // the editor legitimately stays scrolled. Poll for quiescence (one
+    // lock window plus slack) so the asserted switch starts from a settled
+    // sync state.
+    const quiescent = () => page.evaluate(() => {
+      const { mvPreviewScroll, mvEditorScroll } = document.documentElement.dataset;
+      const last = Math.max(Number(mvPreviewScroll ?? 0), Number(mvEditorScroll ?? 0));
+      return Date.now() - last > 150;
+    });
+    await expect.poll(quiescent, { timeout: 5_000 }).toBe(true);
+
+    // The doc links close the panel on navigation — reopen for the way back.
+    await page.getByRole('button', { name: 'Toggle panel' }).click();
+    await panel.getByRole('link', { name: 'About this viewer' }).click();
+    await expect(page.locator('article h1')).toHaveText(/Qalam/);
+    await expect(editor).toHaveValue(/# Qalam/);
+
+    // The document switch resets BOTH panes to the top. The preview lands
+    // at exactly 0 (the Preview effect's contract). The editor follows
+    // through the scroll-sync mirror, which the 60 ms echo lock may eat
+    // when the switch displaces the textarea (firefox reveals the caret at
+    // ~25 px on value replacement) — 25 px of a ~12 000 px document is
+    // still "at the top", so the editor is asserted by fraction.
+    await expect.poll(() => scroll.evaluate((el) => el.scrollTop), { timeout: 5_000 }).toBe(0);
+    await expect
+      .poll(() => editorFraction(page), { timeout: 5_000 })
+      .toBeLessThan(0.05);
+  });
+
+  test('a ?file= deep link with a hash lands on the target heading', async ({ page }) => {
+    // The hash must survive the async boot: the identity is set first, the
+    // content renders right after — the jump fires once the target exists.
+    await page.goto('/?file=README.md#why-qalam');
+    const scroll = previewScroll(page);
+
+    await expect(page.locator('article h2#why-qalam')).toHaveText(/Why Qalam/);
+    await expect
+      .poll(() => scroll.evaluate((el) => el.scrollTop), { timeout: 5_000 })
+      .toBeGreaterThan(0);
+
+    // block: 'start' — the heading aligns with the top of the pane. The
+    // jump fires in a rAF right after injection, while the CDN font may
+    // still be swapping, so the measured gap carries that reflow slack.
+    const gap = await scroll.evaluate((el) => {
+      const target = el.querySelector('h2#why-qalam');
+      if (!target) return Number.POSITIVE_INFINITY;
+      return Math.abs(target.getBoundingClientRect().top - el.getBoundingClientRect().top);
+    });
+    expect(gap).toBeLessThanOrEqual(48);
   });
 });

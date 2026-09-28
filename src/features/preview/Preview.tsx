@@ -3,8 +3,9 @@
 // in-app *.md link interception, per-paragraph direction (auto mode marks
 // every block dir=auto like legacy applyDir), mermaid rendering over the
 // .mermaid-block shells (dynamic import, mermaidConfig(theme), .mermaid-failed
-// + error-note on failure), scroll-to-hash after a document load and the TOC
-// scroll spy.
+// + error-note on failure), the document-switch scroll gating (reset on a
+// real switch only — typing keeps the position — plus the scroll-to-hash
+// after a document load) and the TOC scroll spy.
 import { useEffect, useRef, type RefObject } from 'react';
 
 import { useT } from '../../app/i18n';
@@ -219,25 +220,53 @@ export default function Preview({
     return undefined;
   }, [state.html, t]);
 
-  /* Document switch: reset scroll, then scroll to the location hash (skipping
-     #d= payloads — never a selector) once the new content is injected. */
+  /* Document-switch scroll gating. The debounced preview re-render fires for
+     EVERY typing pause, so the scroll reset must NOT key off state.html —
+     that dragged both panes back to the top on each pause (and the
+     preview→editor scroll sync mirrored the 0 into the editor). Split into
+     two effects:
+
+     A (below) resets the scroll ONLY on a real document switch, tracked
+     through the previous identity in a ref (null = first run, which counts
+     as a switch — a fresh mount shows a fresh document).
+
+     B (below) handles the deep-link hash jump, html-keyed so content that
+     lands AFTER the switch (async ?file= boots) still jumps, but guarded to
+     run at most once per document so typing can never re-trigger it. */
+  const prevIdentityRef = useRef<string | null>(null);
+  const hashJumpDoneRef = useRef(false);
   useEffect(() => {
+    if (prevIdentityRef.current === docIdentity) return undefined;
+    prevIdentityRef.current = docIdentity;
+    // Re-arm the hash jump for the incoming document (B consumed it — or
+    // left it pending — for the previous one).
+    hashJumpDoneRef.current = false;
     const container = scrollRef.current;
+    if (container) container.scrollTop = 0;
+    return undefined;
+  }, [docIdentity, scrollRef]);
+
+  /* Deep-link hash jump: scroll to the location hash target (skipping #d=
+     payloads — never a selector) once it exists in the rendered article.
+     A missing target is NOT consumed: the next html update retries, which
+     is exactly the async-arrival order. Never scrolls to top. */
+  useEffect(() => {
     const article = articleRef.current;
-    if (!container || !article) return undefined;
-    container.scrollTop = 0;
-    if (!window.location.hash || window.location.hash.startsWith('#d=')) {
+    const { hash } = window.location;
+    if (!article || !hash || hash.startsWith('#d=') || hashJumpDoneRef.current) {
       return undefined;
     }
     let el: Element | null = null;
     try {
-      el = article.querySelector(decodeURIComponent(window.location.hash));
+      el = article.querySelector(decodeURIComponent(hash));
     } catch {
-      el = document.getElementById(window.location.hash.slice(1));
+      el = document.getElementById(hash.slice(1));
     }
-    if (el) requestAnimationFrame(() => el?.scrollIntoView({ block: 'start' }));
+    if (!el) return undefined;
+    hashJumpDoneRef.current = true;
+    requestAnimationFrame(() => el?.scrollIntoView({ block: 'start' }));
     return undefined;
-  }, [state.html, docIdentity, scrollRef]);
+  }, [state.html, docIdentity]);
 
   /* TOC scroll spy (legacy updateSpy): rAF-throttled, reports the active
      heading id to the sidebar TOC. */
