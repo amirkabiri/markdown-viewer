@@ -28,12 +28,12 @@
 
 .ok {
   background: var(--ok);
-  color: #fff;
+  color: var(--ok-contrast);
 }
 
 .error {
   background: var(--danger);
-  color: #fff;
+  color: var(--danger-contrast);
 }
 
 @keyframes toast-in {

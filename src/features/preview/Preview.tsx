@@ -201,6 +201,21 @@ export default function Preview({
       attachCopyButton(pre, t('copyCode'), t('copiedCode'));
     });
 
+    /* a11y (axe: scrollable-region-focusable, WCAG 2.1.1): BOTH the pre and
+       the hljs code element (github.css gives .hljs overflow-x: auto) can be
+       scrollable regions, so keyboard users must be able to reach them to
+       scroll them. They get tabindex unconditionally — measuring
+       "overflows right now" is a race against font/layout settling and
+       differs per engine (this exact flake bit the webkit scan). The lib
+       pipeline owns the hljs markup, so the fix lands here, at injection
+       time; innerHTML swap on re-render rebuilds the nodes, so nothing
+       stales. */
+    article.querySelectorAll<HTMLElement>('pre, pre > code').forEach((el) => {
+      // no-param-reassign: mutating the live DOM node in place is the point.
+      // eslint-disable-next-line no-param-reassign
+      el.tabIndex = 0;
+    });
+
     return undefined;
   }, [state.html, t]);
 

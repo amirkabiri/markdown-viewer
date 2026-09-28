@@ -114,7 +114,7 @@
   border: 1px solid var(--accent);
   border-radius: 8px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
@@ -296,7 +296,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #fff;
+  color: var(--accent-contrast);
   font-size: 10px;
   line-height: 1;
 }
@@ -355,7 +355,7 @@
   border-radius: var(--radius);
   border-end-end-radius: 3px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   font-size: 13px;
   line-height: 1.8;
   white-space: pre-wrap;
@@ -512,7 +512,7 @@
   border: 1px solid var(--accent);
   border-radius: 8px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
@@ -618,7 +618,7 @@
 .consentDownload {
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .consentDownload[data-hovered] {

@@ -142,6 +142,10 @@ export default function Workspace({
   return (
     <main
       ref={workspaceRef}
+      id="workspace"
+      /* a11y: skip-link target (tabindex=-1 makes the landmark focusable
+         without putting it in the tab order). */
+      tabIndex={-1}
       className={`${styles.workspace} ${styles[`mode${mode[0].toUpperCase()}${mode.slice(1)}`]}`}
       style={splitStyle}
     >

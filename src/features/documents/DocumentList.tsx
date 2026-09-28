@@ -136,13 +136,40 @@ export default function DocumentList({
     if (event.key === 'Escape') setPendingRemove(null);
   }, []);
 
+  /**
+   * a11y — arrow-key list navigation: Up/Down move focus between rows
+   * (wrapping at the ends), landing on the row's name button. Vertical
+   * arrows are direction-neutral, so RTL needs no flip; left/right stay the
+   * natural Tab order within a row. Only PLAIN buttons participate: the
+   * inline rename input is never hijacked mid-typing, the decorative grip
+   * (tabIndex -1, aria-hidden) is excluded by the selector, and RAC widgets
+   * (the row-menu trigger) keep their own arrow-key semantics.
+   */
+  const handleListKeyDown = useCallback((event: ReactKeyboardEvent<HTMLUListElement>) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    const target = event.target as Element;
+    if (target.tagName !== 'BUTTON' || target.hasAttribute('data-rac')) return;
+    const currentLi = target.closest('li');
+    const rows = Array.from(event.currentTarget.querySelectorAll<HTMLLIElement>('li'));
+    if (rows.length < 2 || !currentLi) return;
+    const index = rows.indexOf(currentLi);
+    if (index < 0) return;
+    const delta = event.key === 'ArrowDown' ? 1 : -1;
+    const next = rows[(index + delta + rows.length) % rows.length];
+    next.querySelector<HTMLButtonElement>('button:not([tabindex="-1"])')?.focus();
+    event.preventDefault();
+  }, []);
+
   const body = pendingRemove
     ? t('docRemoveConfirmBody').replace('{name}', pendingRemove.name)
     : '';
 
   return (
     <>
-      <ul className={styles.list}>
+      {/* The ARIA APG list pattern: the CONTAINER roves arrow-key focus
+          between rows, so the key handler legitimately lives on the list. */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+      <ul className={styles.list} aria-label={t('documents')} onKeyDown={handleListKeyDown}>
         {docs.map((record) => {
           const active = record.id === activeDocId;
           return (

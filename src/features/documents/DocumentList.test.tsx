@@ -138,4 +138,59 @@ describe('<DocumentList />', () => {
     // of them — the pointer path committed a reorder.
     expect(props.onReorder).toHaveBeenCalledWith(['b', 'c', 'a']);
   });
+
+  it('moves row focus with the arrow keys, wrapping at the ends', () => {
+    setup();
+
+    const alpha = screen.getByRole('button', { name: 'Alpha' });
+    const beta = screen.getByRole('button', { name: 'Beta' });
+    const gamma = screen.getByRole('button', { name: 'Gamma' });
+
+    alpha.focus();
+    fireEvent.keyDown(alpha, { key: 'ArrowDown' });
+    expect(beta).toHaveFocus();
+
+    fireEvent.keyDown(beta, { key: 'ArrowDown' });
+    expect(gamma).toHaveFocus();
+
+    // Wraps at the bottom…
+    fireEvent.keyDown(gamma, { key: 'ArrowDown' });
+    expect(alpha).toHaveFocus();
+
+    // …and at the top.
+    fireEvent.keyDown(alpha, { key: 'ArrowUp' });
+    expect(gamma).toHaveFocus();
+  });
+
+  it('leaves arrow keys on RAC controls (the row-menu trigger) to the widget', () => {
+    setup();
+
+    // ArrowDown on a RAC menu trigger opens the menu and focuses its first
+    // item — the widget's own semantics. Row navigation must NOT steal the
+    // key and move focus to another row's name button.
+    const betaMenu = screen.getAllByRole('button', { name: /Document actions/ })[1];
+    betaMenu.focus();
+
+    fireEvent.keyDown(betaMenu, { key: 'ArrowDown' });
+
+    expect(screen.getByRole('menuitem', { name: 'Rename' })).toHaveFocus();
+  });
+
+  it('never hijacks arrows typed into the inline rename input', () => {
+    setup();
+
+    const alpha = screen.getByRole('button', { name: 'Alpha' });
+    alpha.focus();
+    fireEvent.keyDown(alpha, { key: 'ArrowDown' });
+    const beta = screen.getByRole('button', { name: 'Beta' });
+    expect(beta).toHaveFocus();
+
+    // Open the rename input on Beta and press Down: focus must stay put (the
+    // caret moves in the input instead of jumping rows).
+    fireEvent.doubleClick(beta);
+    const input = screen.getByLabelText('Rename');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+
+    expect(input).toHaveFocus();
+  });
 });

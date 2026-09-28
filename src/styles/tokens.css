@@ -17,6 +17,12 @@
   --border-strong: #c7ced6;
   --accent: #0969da;
   --accent-soft: rgba(9, 105, 218, 0.12);
+  /* Text color for SOLID fills of the brand colors (primary buttons, toasts,
+     chat bubbles). White passes on the muted light-theme accents (≥5:1); the
+     bright dark-theme accents need near-black text — white dips to ~3:1. */
+  --accent-contrast: #ffffff;
+  --danger-contrast: #ffffff;
+  --ok-contrast: #ffffff;
   --danger: #cf222e;
   --ok: #1a7f37;
   --code-bg: #eff1f3;
@@ -42,6 +48,9 @@
   --border-strong: #3d444d;
   --accent: #4493f8;
   --accent-soft: rgba(68, 147, 248, 0.18);
+  --accent-contrast: #0d1117;
+  --danger-contrast: #0d1117;
+  --ok-contrast: #0d1117;
   --danger: #f85149;
   --ok: #3fb950;
   --code-bg: rgba(110, 118, 129, 0.25);

@@ -140,8 +140,8 @@
 
 .takeOverBtn {
   border: 1px solid var(--accent);
-  background: transparent;
-  color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
   border-radius: 999px;
   padding: 3px 12px;
   font-size: 12px;
@@ -149,11 +149,15 @@
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
+  transition: filter 0.15s;
 }
 
+/* Solid accent (not the ghost style): accent text on the banner's
+   accent-soft tint computed to 4.13:1 — axe (correctly) fails it. */
 .takeOverBtn:hover {
   background: var(--accent);
-  color: var(--bg-elev);
+  color: var(--accent-contrast);
+  filter: brightness(1.08);
 }
 
 .docNameInput {

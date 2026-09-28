@@ -43,7 +43,13 @@ export default function Sidebar({
 
   const scrollToHeading = (id: string) => {
     onClose();
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // prefers-reduced-motion: the tokens.css media query only covers CSS
+    // transitions — this JS-driven scroll honors it explicitly.
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(id)?.scrollIntoView({
+      behavior: reduceMotion ? 'auto' : 'smooth',
+      block: 'start',
+    });
   };
 
   return (
