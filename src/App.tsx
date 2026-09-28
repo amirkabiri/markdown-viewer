@@ -1,14 +1,17 @@
 // Top-level application shell: composes the providers (i18n, theme, toast,
-// editor api) and the workspace — topbar, split editor/preview, sidebar
-// panel, open dialog, share, drag & drop, overlays and the footer. Behavior
-// is ported from the vanilla app in legacy/src (main/ui/workspace/documents).
+// persistence, editor api) and the workspace — topbar, split editor/preview,
+// sidebar panel, open dialog, share, drag & drop, overlays and the footer.
+// Every document is a repository record (see app/persistence + the documents
+// feature): the sidebar manages them, the editor autosaves the active one.
 import {
-  useCallback, useEffect, useMemo, useState,
+  useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
 
 import { I18nProvider, useT } from './app/i18n';
+import { PersistenceProvider, useDocumentRepository } from './app/persistence';
 import { ThemeProvider, useTheme } from './app/theme';
 import { ToastProvider, useToast } from './components/Toast';
+import { AiPanel, aiToastQueue } from './features/ai';
 import OpenDialog from './features/documents/OpenDialog';
 import { useDocuments } from './features/documents/useDocuments';
 import { EditorProvider, useEditorController } from './features/editor';
@@ -51,20 +54,55 @@ function Shell({ lang, onToggleLang }: ShellProps) {
   const t = useT();
   const { theme, toggleTheme } = useTheme();
   const toast = useToast();
+  const { repo, degraded } = useDocumentRepository();
 
-  const editorCtl = useEditorController();
+  // Autosave: the controller fires onDocChange for every user/agent-driven
+  // text change; the documents controller routes it to the active record
+  // (the repository debounces and guards readonly sessions). Wired through a
+  // ref because the documents controller is created after the editor.
+  const saveRef = useRef<(text: string) => void>(() => {});
+
+  const editorCtl = useEditorController({
+    onDocChange: (text) => saveRef.current(text),
+  });
+
   const documents = useDocuments({
+    repo,
     setEditorDocument: editorCtl.loadDocument,
     toast,
   });
+
+  useEffect(() => {
+    saveRef.current = documents.saveActiveContent;
+  });
+
+  /* One-time subtle notice when persistence degraded to in-memory storage. */
+  const degradedNoticedRef = useRef(false);
+  useEffect(() => {
+    if (!degraded || degradedNoticedRef.current) return;
+    degradedNoticedRef.current = true;
+    toast(t('persistenceDegraded'));
+  }, [degraded, toast, t]);
 
   const { mode, setMode } = usePaneMode();
   const { dirMode, cycleDir } = useContentDir();
 
   const [panelOpen, setPanelOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
+
+  /* AI panel toasts surface through the app-root toast region (R5's handoff:
+     the in-panel ToastRegion is gone; the shared queue is bridged here). */
+  const seenAiToastsRef = useRef(new Set<string>());
+  useEffect(() => aiToastQueue.subscribe(() => {
+    aiToastQueue.visibleToasts.forEach((item) => {
+      if (seenAiToastsRef.current.has(item.key)) return;
+      seenAiToastsRef.current.add(item.key);
+      toast(item.content);
+    });
+  }), [toast]);
 
   const previewState = useMarkdownPreview(editorCtl.text, {
     baseUrl: documents.doc?.baseUrl,
@@ -73,19 +111,22 @@ function Shell({ lang, onToggleLang }: ShellProps) {
 
   const dirEditor = previewDirFor(dirMode, editorCtl.text);
   const {
-    boot, route, readAndLoad, loadUrl, loadFile, newDocument, recent, doc,
-    docIdentity, loading,
+    boot, route, readAndLoad, loadUrl, loadFile, newDocument, doc,
+    docIdentity, loading, docs, activeId, activeMode,
+    selectDocument, removeDocument, renameDocument, reorderDocuments,
   } = documents;
 
-  /* Boot routing + popstate (legacy main.ts boot/route). */
+  /* Boot routing + popstate (legacy main.ts boot/route). Waits for the
+     repository to come up — boot() is a no-op until then. */
   useEffect(() => {
+    if (!repo) return undefined;
     run(boot());
     const onPopstate = () => {
       run(route());
     };
     window.addEventListener('popstate', onPopstate);
     return () => window.removeEventListener('popstate', onPopstate);
-  }, [boot, route]);
+  }, [repo, boot, route]);
 
   /* Legacy bindUI keyboard shortcuts: Ctrl/Cmd+O opens the dialog, Escape
      closes the panel. */
@@ -140,10 +181,26 @@ function Shell({ lang, onToggleLang }: ShellProps) {
   }, [editorCtl, toast, t]);
 
   const handleNewDocument = useCallback(() => {
-    if (!newDocument(editorCtl.text.trim() !== '')) return;
-    setPanelOpen(false);
-    editorCtl.focus();
+    // No data-loss confirm: the previous document is already persisted.
+    run(newDocument().then((ok) => {
+      if (!ok) return;
+      setPanelOpen(false);
+      editorCtl.focus();
+    }));
   }, [newDocument, editorCtl]);
+
+  const handleSelectDoc = useCallback((id: string) => {
+    run(selectDocument(id));
+  }, [selectDocument]);
+
+  const handleRemoveDoc = useCallback((id: string) => {
+    run(removeDocument(id));
+  }, [removeDocument]);
+
+  const handleRenameActiveDoc = useCallback((name: string) => {
+    const id = documents.activeId;
+    if (id) run(documents.renameDocument(id, name));
+  }, [documents]);
 
   const sidebar = useMemo(() => (
     <Sidebar
@@ -151,16 +208,22 @@ function Shell({ lang, onToggleLang }: ShellProps) {
       onClose={() => setPanelOpen(false)}
       toc={previewState.toc}
       activeHeadingId={activeHeadingId}
-      recent={recent}
+      docs={docs}
+      activeDocId={activeId}
+      onSelectDoc={handleSelectDoc}
+      onRemoveDoc={handleRemoveDoc}
+      onRenameDoc={renameDocument}
+      onReorderDocs={reorderDocuments}
       onOpenFileParam={(fileParam) => {
         run(loadFile(fileParam));
       }}
-      onOpenRecent={(item) => {
-        run(loadUrl(item.url));
-      }}
       onNewDocument={handleNewDocument}
     />
-  ), [panelOpen, previewState.toc, activeHeadingId, recent, loadFile, loadUrl, handleNewDocument]);
+  ), [
+    panelOpen, previewState.toc, activeHeadingId, docs, activeId,
+    handleSelectDoc, handleRemoveDoc, renameDocument, reorderDocuments,
+    loadFile, handleNewDocument,
+  ]);
 
   return (
     <EditorProvider api={editorCtl.api}>
@@ -172,6 +235,8 @@ function Shell({ lang, onToggleLang }: ShellProps) {
         onOpen={() => setDialogOpen(true)}
         onShare={handleShare}
         onCycleDir={handleCycleDir}
+        aiOpen={aiOpen}
+        onToggleAi={() => setAiOpen((open) => !open)}
         lang={lang}
         onToggleLang={onToggleLang}
         theme={theme}
@@ -182,6 +247,8 @@ function Shell({ lang, onToggleLang }: ShellProps) {
         mode={mode}
         editor={editorCtl}
         docName={doc?.name ?? ''}
+        docReadonly={activeMode === 'readonly'}
+        docRenameable={activeId !== null}
         lang={lang}
         dirEditor={dirEditor}
         previewState={previewState}
@@ -193,6 +260,10 @@ function Shell({ lang, onToggleLang }: ShellProps) {
         onOpenDocLink={(href) => {
           run(loadUrl(href));
         }}
+        onTakeOver={() => {
+          run(documents.takeoverActive());
+        }}
+        onRenameDoc={handleRenameActiveDoc}
       />
 
       {sidebar}
@@ -208,7 +279,6 @@ function Shell({ lang, onToggleLang }: ShellProps) {
         }}
         onPaste={(text) => documents.loadPasted(text)}
       />
-
       {dropOpen && (
         <div className={styles.dropOverlay} aria-hidden="true">
           <div className={styles.dropBox}>
@@ -220,6 +290,10 @@ function Shell({ lang, onToggleLang }: ShellProps) {
           </div>
         </div>
       )}
+
+      {/* Conditional mount IS the AI toggle: the panel is open-while-mounted
+         (its frozen props have no open/onOpenChange). */}
+      {aiOpen && <AiPanel editor={editorCtl.api} t={t} lang={lang} />}
 
       {loading && (
         <div className={styles.loading} aria-hidden="true">
@@ -276,7 +350,9 @@ export default function App() {
     <I18nProvider lang={lang}>
       <ThemeProvider>
         <ToastProvider>
-          <Shell lang={lang} onToggleLang={toggleLang} />
+          <PersistenceProvider>
+            <Shell lang={lang} onToggleLang={toggleLang} />
+          </PersistenceProvider>
         </ToastProvider>
       </ThemeProvider>
     </I18nProvider>

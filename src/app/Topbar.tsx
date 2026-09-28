@@ -17,6 +17,8 @@ export interface TopbarProps {
   onOpen: () => void;
   onShare: () => void;
   onCycleDir: () => void;
+  aiOpen: boolean;
+  onToggleAi: () => void;
   lang: Lang;
   onToggleLang: () => void;
   theme: Theme;
@@ -116,6 +118,15 @@ function OpenIcon() {
   );
 }
 
+function SparkleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+      <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z" />
+    </svg>
+  );
+}
+
 const PANE_ARIA: Record<PaneMode, string> = {
   editor: 'Editor only',
   split: 'Split view',
@@ -124,7 +135,7 @@ const PANE_ARIA: Record<PaneMode, string> = {
 
 export default function Topbar({
   panelOpen, onTogglePanel, mode, onSetMode, onOpen, onShare,
-  onCycleDir, lang, onToggleLang, theme, onToggleTheme,
+  onCycleDir, aiOpen, onToggleAi, lang, onToggleLang, theme, onToggleTheme,
 }: TopbarProps) {
   const t = useT();
 
@@ -167,6 +178,17 @@ export default function Topbar({
       <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onOpen}>
         <OpenIcon />
         <span>{t('open')}</span>
+      </button>
+
+      <button
+        type="button"
+        className={styles.iconBtn}
+        aria-label={t('aiButton')}
+        title={t('aiButton')}
+        aria-expanded={aiOpen}
+        onClick={onToggleAi}
+      >
+        <SparkleIcon />
       </button>
 
       <button

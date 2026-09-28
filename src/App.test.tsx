@@ -2,6 +2,9 @@
 // document, editor→preview flow, theme/lang persistence and pane modes.
 // The network boundary is a stubbed global fetch returning real Responses
 // (house style); storage is the real jsdom localStorage, reset per test.
+// The AI panel is stubbed via vi.mock (justified last resort per TESTING.md:
+// the panel drags the whole builtin-AI/fetch-SSE boundary along) — only its
+// mounting through the topbar toggle is asserted here.
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
@@ -9,6 +12,18 @@ import {
 } from 'vitest';
 
 import App from './App';
+
+vi.mock('./features/ai', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./features/ai')>();
+  function StubAiPanel() {
+    return (
+      <button type="button" onClick={() => actual.aiToast('Bridged from the panel')}>
+        Emit AI toast
+      </button>
+    );
+  }
+  return { ...actual, AiPanel: StubAiPanel };
+});
 
 function stubFetch(body: string, ok = true): void {
   vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status: ok ? 200 : 404 })));
@@ -65,7 +80,7 @@ describe('<App /> shell', () => {
 
   it('updates the preview as the user types (after the debounce)', async () => {
     render(<App />);
-    await screen.findByRole('heading', { name: /Stub README/ });
+    await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
 
     const editor = screen.getByLabelText('Markdown source');
     await userEvent.clear(editor);
@@ -76,7 +91,7 @@ describe('<App /> shell', () => {
 
   it('toggles the theme, flipping data-theme and persisting mv:theme', async () => {
     render(<App />);
-    await screen.findByRole('heading', { name: /Stub README/ });
+    await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
 
     await userEvent.click(screen.getByRole('button', { name: 'Toggle light / dark theme' }));
 
@@ -91,7 +106,7 @@ describe('<App /> shell', () => {
 
   it('toggles the language, flipping html lang/dir and persisting mv:lang', async () => {
     render(<App />);
-    await screen.findByRole('heading', { name: /Stub README/ });
+    await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
 
     // The button announces the language it switches TO (legacy toggleLang).
     await userEvent.click(screen.getByRole('button', { name: 'تغییر زبان به فارسی' }));
@@ -104,7 +119,7 @@ describe('<App /> shell', () => {
 
   it('persists the pane mode when switching to preview-only', async () => {
     render(<App />);
-    await screen.findByRole('heading', { name: /Stub README/ });
+    await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
 
     await userEvent.click(screen.getByRole('button', { name: 'Preview only' }));
 
@@ -114,7 +129,7 @@ describe('<App /> shell', () => {
   it('copies a share link and toasts "copied"', async () => {
     const clipboard = stubClipboard();
     render(<App />);
-    await screen.findByRole('heading', { name: /Stub README/ });
+    await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
 
     await userEvent.click(screen.getByRole('button', { name: 'Copy link to this document' }));
 
@@ -128,7 +143,7 @@ describe('<App /> shell', () => {
 
   it('opens the dialog from the Open button and closes it again', async () => {
     render(<App />);
-    await screen.findByRole('heading', { name: /Stub README/ });
+    await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
 
     await userEvent.click(screen.getByRole('button', { name: /Open/ }));
     expect(screen.getByRole('heading', { name: 'Open a document' })).toBeVisible();
@@ -137,5 +152,52 @@ describe('<App /> shell', () => {
     await waitFor(() => {
       expect(screen.queryByRole('heading', { name: 'Open a document' })).toBeNull();
     });
+  });
+
+  it('toggles the AI panel by mounting and unmounting it', async () => {
+    render(<App />);
+    await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
+
+    expect(screen.queryByRole('button', { name: 'Emit AI toast' })).not.toBeInTheDocument();
+    const aiButton = screen.getByRole('button', { name: 'AI assistant' });
+    expect(aiButton).toHaveAttribute('aria-expanded', 'false');
+
+    await userEvent.click(aiButton);
+    expect(screen.getByRole('button', { name: 'Emit AI toast' })).toBeInTheDocument();
+    expect(aiButton).toHaveAttribute('aria-expanded', 'true');
+
+    await userEvent.click(aiButton);
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Emit AI toast' })).not.toBeInTheDocument();
+    });
+    expect(aiButton).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('bridges AI panel toasts into the app-root toast region', async () => {
+    render(<App />);
+    await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
+
+    await userEvent.click(screen.getByRole('button', { name: 'AI assistant' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Emit AI toast' }));
+
+    // The shared aiToastQueue is rendered by the app ToastProvider — the
+    // panel no longer owns a ToastRegion of its own.
+    expect(await screen.findByText('Bridged from the panel')).toBeInTheDocument();
+  });
+
+  it('creates a document from the sidebar, listing it among persisted docs', async () => {
+    render(<App />);
+    await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Toggle panel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New document' }));
+
+    // The new document replaces the boot doc in the editor without a confirm
+    // (the previous document is already persisted).
+    await waitFor(() => {
+      expect(screen.getByLabelText('Markdown source')).toHaveValue('');
+    });
+    expect(screen.getAllByRole('button', { name: 'Untitled' })).not.toHaveLength(0);
+    expect(screen.getAllByRole('button', { name: 'README' })).not.toHaveLength(0);
   });
 });
