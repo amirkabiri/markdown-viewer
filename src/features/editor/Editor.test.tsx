@@ -3,7 +3,9 @@
 // rAF-batched measurement and the digit-driven width. Geometry is scripted
 // through a fake measurer injected at the Editor boundary (house style:
 // fakes over mocks — jsdom has no layout engine, TESTING.md).
-import { act, render, screen, waitFor } from '@testing-library/react';
+import {
+  act, render, screen, waitFor,
+} from '@testing-library/react';
 import { useEffect } from 'react';
 import { describe, expect, it } from 'vitest';
 
@@ -29,7 +31,10 @@ class FakeLineMeasurer implements LineMeasurer {
 
   measureHeights(lines: readonly string[]): number[] {
     this.calls.push([...lines]);
-    return lines.map((line) => (line.length > this.wrapAfter ? this.rowHeight * 2 : this.rowHeight));
+    const wrapped = (line: string): number => (
+      line.length > this.wrapAfter ? this.rowHeight * 2 : this.rowHeight
+    );
+    return lines.map(wrapped);
   }
 }
 
@@ -39,7 +44,7 @@ function Inner({
   capture, createMeasurer,
 }: {
   capture: (c: EditorController) => void;
-  createMeasurer?: (textarea: HTMLTextAreaElement) => LineMeasurer;
+  createMeasurer: (textarea: HTMLTextAreaElement) => LineMeasurer;
 }) {
   const ctrl = useEditorController();
   useEffect(() => {
@@ -57,13 +62,18 @@ function Inner({
   );
 }
 
-function Harness({ createMeasurer }: { createMeasurer?: (textarea: HTMLTextAreaElement) => LineMeasurer }) {
+function Harness({
+  createMeasurer,
+}: {
+  createMeasurer: (textarea: HTMLTextAreaElement) => LineMeasurer;
+}) {
   return (
     <I18nProvider lang="en">
-      <Inner capture={(c) => {
-        ctl = c;
-      }}
-      createMeasurer={createMeasurer}
+      <Inner
+        capture={(c) => {
+          ctl = c;
+        }}
+        createMeasurer={createMeasurer}
       />
     </I18nProvider>
   );
@@ -138,9 +148,15 @@ describe('<Editor /> line-number gutter', () => {
     act(() => controller().loadDocument('alpha\nbeta\ngamma'));
     await waitFor(() => expect(screen.getByText('3', { exact: true })).toBeInTheDocument());
 
+    const ta = textarea();
+    // jsdom has no layout engine: fake the textarea's scroll geometry at the
+    // DOM boundary (house style) so the scrollable range is non-degenerate.
+    Object.defineProperty(ta, 'scrollHeight', { configurable: true, value: 600 });
+    Object.defineProperty(ta, 'clientHeight', { configurable: true, value: 200 });
+
     act(() => {
-      textarea().scrollTop = 120;
-      textarea().dispatchEvent(new Event('scroll'));
+      ta.scrollTop = 120;
+      ta.dispatchEvent(new Event('scroll'));
     });
 
     // The numbers move inside a translated column — one transform per
@@ -151,14 +167,34 @@ describe('<Editor /> line-number gutter', () => {
     });
   });
 
+  it('clamps a scroll position past the scrollable range', async () => {
+    await renderWithFake();
+    act(() => controller().loadDocument('alpha\nbeta\ngamma'));
+    await waitFor(() => expect(screen.getByText('3', { exact: true })).toBeInTheDocument());
+
+    const ta = textarea();
+    Object.defineProperty(ta, 'scrollHeight', { configurable: true, value: 600 });
+    Object.defineProperty(ta, 'clientHeight', { configurable: true, value: 200 });
+
+    act(() => {
+      ta.scrollTop = 500; // range is 600 - 200 = 400
+      ta.dispatchEvent(new Event('scroll'));
+    });
+
+    await waitFor(() => {
+      const column = screen.getByText('1', { exact: true }).parentElement;
+      expect(column?.style.transform).toBe('translateY(-400px)');
+    });
+  });
+
   it('recomputes metrics when the text changes after typing', async () => {
     const fake = await renderWithFake();
     act(() => controller().loadDocument('first'));
 
-    await waitFor(() => expect(fake.calls.at(-1)).toEqual(['first']));
+    await waitFor(() => expect(fake.calls[fake.calls.length - 1]).toEqual(['first']));
     act(() => controller().loadDocument('first\nsecond'));
 
-    await waitFor(() => expect(fake.calls.at(-1)).toEqual(['first', 'second']));
+    await waitFor(() => expect(fake.calls[fake.calls.length - 1]).toEqual(['first', 'second']));
     expect(screen.getByText('2', { exact: true })).toBeInTheDocument();
   });
 
@@ -172,7 +208,7 @@ describe('<Editor /> line-number gutter', () => {
     });
 
     await waitFor(() => expect(fake.calls.length).toBe(measured + 1));
-    expect(fake.calls.at(-1)).toEqual(['one', 'two']);
+    expect(fake.calls[fake.calls.length - 1]).toEqual(['one', 'two']);
   });
 
   it('grows the gutter width when the document crosses 9 lines', async () => {
