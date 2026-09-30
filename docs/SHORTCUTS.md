@@ -74,19 +74,23 @@ Legend: ✅ free · ⚠️ conventional clash · ❌ reserved clash (documented 
 
 ## 4. Final binding map
 
-The Qalam family is **`Mod+Alt+…`** (⌘⌥ on macOS, Ctrl+Alt elsewhere): the one
-modifier neighborhood that is free on macOS, Windows and all four audited
-browsers — Apple's own ⌘⌥ list (Dock, Hide Others, Minimize/Close All,
-Downloads, Toolbar, Copy/Paste Style, Smart Folder…) and the browsers' ⌘⌥
-DevTools/Bookmark-Manager/Split-View combos avoid most letters, and Windows
-reserves none of Ctrl+Alt+letter (Microsoft: only Win+Alt variants exist). The
-letters below are absent from every audited source list on both platforms.
+The Qalam family is **`Mod+Alt(+Shift)+…`** (⌘⌥[⇧] on macOS, Ctrl+Alt[+Shift]
+elsewhere): the one modifier neighborhood that is free on macOS, Windows and
+all four audited browsers — Apple's own ⌘⌥ list (Dock, Hide Others,
+Minimize/Close All, Downloads, Toolbar, Copy/Paste Style, Smart Folder…) and
+the browsers' ⌘⌥ DevTools/Bookmark-Manager/Split-View/View-Source combos avoid
+most letters, and Windows reserves none of Ctrl+Alt+letter (Microsoft: only
+Win+Alt variants exist). Every letter below was checked against each audited
+source list on both platforms; where the plain ⌘⌥ letter was claimed (N, K),
+the Shifted form is used and itself audited. (Correction history: v1 shipped
+copyShareLink on Mod+Alt+U, missing the macOS ⌘⌥U View Source row — caught in
+lead review, see the review note below.)
 
 | Action | Old | New (macOS) | New (Windows/browsers) | Rationale |
 | --- | --- | --- | --- | --- |
 | Open dialog | `⌘O` / `Ctrl+O` | `⌘⌥O` | `Ctrl+Alt+O` | Escapes the universal browser Open File combo; keeps the O mnemonic. |
 | New document | `⌘⌥N` / `Ctrl+Alt+N` | `⌘⌥⇧N` | `Ctrl+Alt+Shift+N` | Chrome binds ⌘⌥N to split view on Mac; ⇧ clears it (⌘⌥⇧N is on no vendor list) while keeping the N mnemonic. |
-| Copy link to this document | `⌘⇧C` / `Ctrl+Shift+C` | `⌘⌥U` | `Ctrl+Alt+U` | Escapes the DevTools Inspect combo on every browser; U = URL. |
+| Copy link to this document | `⌘⇧C` / `Ctrl+Shift+C` | `⌘⌥⇧K` | `Ctrl+Alt+Shift+K` | Escapes the DevTools Inspect combo on every browser; K = linK, Shifted because plain ⌘⌥U (v1 choice) and plain ⌘⌥K are both taken on macOS — see the review note below. |
 | Toggle sidebar | `⌘\` / `Ctrl+\` | `⌘\` | `Ctrl+\` | No documented conflict on any platform. |
 | Toggle AI assistant | `⌘I` / `Ctrl+I` | `⌘⌥A` | `Ctrl+Alt+A` | Ctrl/⌘+I is the italic convention (and Firefox Page Info); A = AI assistant. |
 | Editor only | `⌥1` / `Alt+1` | `⌥1` | `Alt+1` | Safe everywhere; preventDefault stops macOS dead-character typing. |
@@ -95,6 +99,29 @@ letters below are absent from every audited source list on both platforms.
 | Text direction (Auto/LTR/RTL) | `⌘⌥D` / `Ctrl+Alt+D` | `⌘⌥X` | `Ctrl+Alt+X` | ⌘⌥D toggles the macOS Dock (OS-reserved — the page cannot win); X = flip/swap. |
 | Keyboard shortcuts | `?` | `?` | `?` | Character-matched, layout-independent; no viewport conflict (DevTools' Shift+? is DevTools-internal). |
 | Close panel or dialog | `Esc` | `Esc` | `Esc` | Universal close convention; yields to React Aria layers first. |
+
+**Review note (lead validation, September 2026) — copyShareLink reworked.**
+The v1 choice Mod+Alt+U shipped before the macOS ⌘⌥U combo was audited; it is
+a tier-2 reserved clash:
+
+- **Chrome on Mac:** "Display non-editable HTML source code for the current
+  page — ⌘ + Option + u" (Chrome Help, macOS column). Windows' Ctrl+U has no
+  Alt analogue on the page, but the Mac ⌘⌥U row alone disqualifies Mod+Alt+U.
+- **Safari on Mac:** Show Page Source lives in the Develop menu on
+  ⌥⌘U (Apple Support Communities threads; WebKit's Web Inspector list carries
+  the same ⌥⌘U for "Show inspected page source").
+
+Replacement letter audit (lead candidate K = linK): plain **Mod+Alt+K is also
+disqualified on macOS** — Firefox's DevTools documentation lists
+"Open Web Console … macOS: Cmd + Opt + K" under "Opening & Closing Tools
+(work in the main browser window)", a page-viewport binding like ⌘⌥I.
+**Mod+Alt+Shift+K is free on every audited list**: ⌥⇧⌘K appears nowhere on
+Apple's shortcut page (only ⌥⇧⌘Delete/Q/V and arrow extensions), in Safari's
+guide, in the Web Inspector list (⌥⇧⌘I only), in Chrome Help or DevTools, in
+Edge's browser or DevTools lists (Edge's Ctrl+Shift+K = duplicate tab carries
+no Alt), in Firefox's DevTools docs (only ⌥⇧⌘I for the Browser Toolbox), or in
+Microsoft's Windows list. The Shifted form mirrors the existing
+Mod+Alt+Shift+N pattern.
 
 Known accepted trade-off (documented, out of audit scope): on Windows,
 **Ctrl+Alt is the AltGr alias** on many international layouts, so AltGr-typed
@@ -109,7 +136,8 @@ typing regressions are reported.
 (`RESERVED_COMBOS`) for both platforms and asserts no `SHORTCUTS` entry
 collides. The fixture lists only combos documented by the sources below at
 OS level or browser-viewport level; in-DevTools-only combos are excluded by the
-scoping rule in §2.
+scoping rule in §2. It includes mac ⌘⌥U (Chrome/Safari View Source) and mac
+⌘⌥K (Firefox Web Console) — the two combos the copyShareLink review rejected.
 
 ## Sources
 
@@ -120,10 +148,16 @@ macOS / Safari:
   Folder, ⌘⌥H/M/W/S/T/L/P/F/V/Y, no Option+digit shortcuts)
 - Apple — Safari keyboard shortcuts and gestures:
   <https://support.apple.com/guide/safari/keyboard-shortcuts-and-gestures-cpsh003/mac>
-  (⌘⇧D Add to Reading List, ⌘⇧\ tab overview, ⌘1–9 tabs, ⌘P print)
+  (⌘⇧D Add to Reading List, ⌘⇧\ tab overview, ⌘1–9 tabs, ⌘P print; no K or U
+  combos with ⌥⌘ appear)
+- Apple Support Communities — Safari View/Show Page Source on ⌥⌘U:
+  <https://discussions.apple.com/thread/252962482> (Develop-menu binding;
+  the cpsh003 guide page itself does not enumerate Develop shortcuts)
 - WebKit — Web Inspector keyboard shortcuts:
   <https://webkit.org/web-inspector/keyboard-shortcuts/>
-  (⌥⌘I open/close Web Inspector, ⌥⌘C Console, ⌥⌘R reload from origin)
+  (⌥⌘I open/close Web Inspector, ⌥⌘C Console, ⌥⌘R reload from origin,
+  ⌥⌘U show inspected page source; ⌥⇧⌘I connect inspector is the only ⌥⇧⌘
+  combo listed)
 
 Windows / Edge:
 
@@ -134,7 +168,9 @@ Windows / Edge:
 - Microsoft — Keyboard shortcuts in Microsoft Edge:
   <https://support.microsoft.com/en-us/microsoft-edge/keyboard-shortcuts-in-microsoft-edge-50d3edab-30d9-c7e4-21ce-37fe2713cfad>
   (Ctrl+O open file, Ctrl+Shift+I DevTools, Ctrl+Shift+D save all tabs as
-  favorites, Alt+D address bar, Ctrl+N/T/W/P/S/U)
+  favorites, Alt+D address bar, Ctrl+N/T/W/P/S/U; Ctrl+Shift+K duplicate tab —
+  no Alt, so distinct from Ctrl+Alt+Shift+K; no Ctrl+Alt+K / Ctrl+Alt+U /
+  Ctrl+Alt+Shift+K rows)
 - Microsoft Learn — Edge DevTools keyboard shortcuts:
   <https://learn.microsoft.com/en-us/microsoft-edge/devtools/shortcuts>
   (Ctrl+Shift+C / ⌘⇧C or ⌘⌥C = Elements / Inspect Element Mode, Ctrl+Shift+I,
@@ -145,9 +181,11 @@ Chrome:
 - Google — Chrome keyboard shortcuts:
   <https://support.google.com/chrome/answer/157179>
   (Ctrl+O open file; ⌘⌥N split view on Mac / Shift+Alt+N on Windows;
+  **⌘+Option+U "Display non-editable HTML source code" on Mac — the row that
+  disqualifies Mod+Alt+U**; Ctrl+U view source on Windows/Linux;
   Ctrl+Shift+D bookmark all tabs; Ctrl+Shift+O Bookmark Manager; Ctrl+J
   downloads; Ctrl+D bookmark; Ctrl+1–9 tabs; Ctrl+L/Alt+D address bar; no
-  Ctrl+Alt+letter shortcuts documented)
+  Ctrl+Alt+letter shortcuts and no K combos with Ctrl+Alt documented)
 - Chrome for Developers — DevTools keyboard shortcuts:
   <https://developer.chrome.com/docs/devtools/shortcuts>
   (Ctrl+Shift+C = Elements; macOS ⌘⇧C or ⌘⌥C; Ctrl+Shift+I / ⌘⌥I; Ctrl+Shift+J / ⌘⌥J)
@@ -162,5 +200,7 @@ Firefox:
 - Mozilla — Firefox DevTools keyboard shortcuts (firefox-source-docs):
   <https://firefox-source-docs.mozilla.org/devtools-user/keyboard_shortcuts/>
   (Ctrl+Shift+C pick an element / ⌘⇧C Inspect Element on macOS / ⌘⌥C picker on
-  macOS, Ctrl+Shift+I / ⌘⌥I toolbox, Ctrl+Shift+J browser console,
-  Ctrl+Alt+Shift+I browser toolbox, Ctrl+Shift+M responsive mode)
+  macOS, Ctrl+Shift+I / ⌘⌥I toolbox, **⌘⌥K Open Web Console on macOS — the row
+  that disqualifies plain Mod+Alt+K**, Ctrl+Shift+J browser console,
+  Ctrl+Alt+Shift+I browser toolbox — no ⌘⌥⇧K anywhere, Ctrl+Shift+M responsive
+  mode)
