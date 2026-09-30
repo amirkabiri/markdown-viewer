@@ -11,6 +11,7 @@ import {
   documentOutline,
   formatDocumentRead,
   formatToolResult,
+  lineRangeOfOffset,
   readDocumentLines,
   searchDocument,
 } from './tool-results';
@@ -63,7 +64,9 @@ describe('readDocumentLines', () => {
   });
 
   it('treats the empty document as zero lines', () => {
-    expect(readDocumentLines('', 1, 400)).toMatchObject({ totalLines: 0, startLine: 1, endLine: 0, clipped: false });
+    expect(readDocumentLines('', 1, 400)).toMatchObject({
+      totalLines: 0, startLine: 1, endLine: 0, clipped: false,
+    });
   });
 });
 
@@ -174,6 +177,34 @@ describe('documentOutline', () => {
     const entries = documentOutline(big);
     expect(Date.now() - started).toBeLessThan(2000);
     expect(entries).toEqual([{ line: 100001, level: 1, text: 'End' }]);
+  });
+});
+
+/* ---------------- lineRangeOfOffset (§5.5 selection anchors) ---------------- */
+
+describe('lineRangeOfOffset', () => {
+  const doc = '# Title\n\nBody text here\nmore\n';
+
+  it('maps a mid-document selection to its 1-based inclusive lines', () => {
+    const start = doc.indexOf('Body text here');
+    expect(lineRangeOfOffset(doc, start, start + 'Body text here'.length))
+      .toEqual({ startLine: 3, endLine: 3 });
+  });
+
+  it('spans lines for a cross-line selection', () => {
+    const start = doc.indexOf('Body');
+    const end = doc.indexOf('more') + 'more'.length;
+    expect(lineRangeOfOffset(doc, start, end)).toEqual({ startLine: 3, endLine: 4 });
+  });
+
+  it('keeps a range ending at a newline on the terminated line', () => {
+    const nlAt = doc.indexOf('\n', doc.indexOf('Body')); // newline of line 3
+    expect(lineRangeOfOffset(doc, nlAt, nlAt + 1)).toEqual({ startLine: 3, endLine: 3 });
+  });
+
+  it('reports the caret line for an empty range and survives a whole-document range', () => {
+    expect(lineRangeOfOffset(doc, 0, 0)).toEqual({ startLine: 1, endLine: 1 });
+    expect(lineRangeOfOffset(doc, 0, doc.length)).toEqual({ startLine: 1, endLine: 4 });
   });
 });
 

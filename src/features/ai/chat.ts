@@ -3,6 +3,10 @@
 // protocol (+ the read-only note when direct editing is off). No DOM, no
 // React — the panel hands this straight to createAgent().run(). Ported from
 // legacy/src/ai/index.ts send() (the prompt half).
+//
+// v2 toolset (spec §5.5): selection + preview-excerpt context carry their
+// LINE ANCHORS with an action hint, so the model can apply edits immediately
+// with replace_range / replace_text — no wasted discovery read.
 
 import { agentSystemPrompt } from '../../lib/ai/agent';
 import { BUILTIN_SYSTEM_PROMPT } from '../../lib/ai/providers/builtin';
@@ -22,6 +26,12 @@ export interface ChatPromptInput {
   readOnly: boolean;
   /** A preview-pane selection attached as composer context (optional). */
   excerpt?: PreviewExcerptPayload;
+  /** The captured selection's 1-based line range in the document (when the
+   *  pipeline can map it) — lets the model edit the range directly. */
+  selectionLines?: { startLine: number; endLine: number } | null;
+  /** How the previous turn's proposed edit was resolved by the user — fed
+   *  back so the model never re-proposes a discarded edit blindly. */
+  resolution?: { tool: string; resolution: 'applied' | 'discarded' } | null;
 }
 
 /** Appends the agent tool protocol to the system message of a prompt. */
@@ -29,6 +39,14 @@ function withAgentPrompt(messages: ChatMessage[], agentPrompt: string): ChatMess
   const [first, ...rest] = messages;
   if (first?.role !== 'system') return messages; // nothing to augment (defensive)
   return [{ role: 'system', content: `${first.content}\n\n${agentPrompt}` }, ...rest];
+}
+
+/** Model-facing note about how the last proposed edit landed (ASCII only). */
+function resolutionNote(resolution: NonNullable<ChatPromptInput['resolution']>): string {
+  const verdict = resolution.resolution === 'applied'
+    ? 'was APPLIED to the document'
+    : 'was DISCARDED by the user — do not re-propose the same edit; ask what to change instead';
+  return `Note: your previous ${resolution.tool} proposal ${verdict}.`;
 }
 
 /* ---------------- preview-excerpt attachment ---------------- */
@@ -43,7 +61,12 @@ const EXCERPT_DATA_RULE = [
 function excerptSourceHint(excerpt: PreviewExcerptPayload): string {
   const parts: string[] = [];
   if (excerpt.sourceRange) {
-    parts.push(`source: lines ${excerpt.sourceRange.startLine}-${excerpt.sourceRange.endLine} of the raw markdown`);
+    const { startLine, endLine } = excerpt.sourceRange;
+    parts.push(
+      `source: lines ${startLine}-${endLine} of the raw markdown`
+      + ` (edit it directly with replace_range {"startLine": ${startLine}, "endLine": ${endLine}}`
+      + ' or replace_text anchored on its exact first/last lines)',
+    );
   }
   if (excerpt.headingPath.length > 0) {
     parts.push(`section: ${excerpt.headingPath.join(' › ')}`);
@@ -89,23 +112,28 @@ export function attachExcerpt(
  * selection + document via buildSelectionMessages; plain sends use the
  * markdown-assistant persona. The agent protocol (and read-only note when
  * applicable) rides on the system message either way. An attached preview
- * excerpt is appended to the last user message as delimited, untrusted data.
+ * excerpt is appended to the last user message as delimited, untrusted data
+ * with its line anchors; the previous turn's edit resolution rides on the
+ * system message when present.
  */
 export function buildChatMessages(input: ChatPromptInput): ChatMessage[] {
   const agentPrompt = agentSystemPrompt({ readOnly: input.readOnly });
+  const note = input.resolution ? resolutionNote(input.resolution) : '';
+  const prompt = note !== '' ? `${agentPrompt}\n\n${note}` : agentPrompt;
   let messages: ChatMessage[];
   if (input.hasSelection) {
-    let prompt = agentPrompt;
-    if (!input.readOnly) {
-      prompt += '\n\nApply the edited selection with edit_document in "replace-selection" mode.';
+    let withSelection = prompt;
+    if (!input.readOnly && input.selectionLines) {
+      const { startLine, endLine } = input.selectionLines;
+      withSelection += `\n\nThe user's selection is lines ${startLine}-${endLine} of the document. Apply the edited text with replace_range {"startLine": ${startLine}, "endLine": ${endLine}} — or replace_text anchored on the selection's exact first and last lines.`;
     }
     messages = withAgentPrompt(
       buildSelectionMessages(input.question, input.selected, input.docText),
-      prompt,
+      withSelection,
     );
   } else {
     messages = [
-      { role: 'system', content: `${BUILTIN_SYSTEM_PROMPT}\n\n${agentPrompt}` },
+      { role: 'system', content: `${BUILTIN_SYSTEM_PROMPT}\n\n${prompt}` },
       { role: 'user', content: input.question },
     ];
   }

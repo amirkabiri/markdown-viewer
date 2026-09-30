@@ -99,6 +99,34 @@ export function countLines(doc: string): number {
   return doc.length > 0 && !doc.endsWith('\n') ? lines + 1 : lines;
 }
 
+/** 1-based line of a char offset, one pass. */
+function lineAtOffset(doc: string, offset: number): number {
+  let line = 1;
+  const to = Math.min(Math.max(offset, 0), doc.length);
+  for (let i = 0; i < to; i += 1) {
+    if (doc[i] === '\n') line += 1;
+  }
+  return line;
+}
+
+/**
+ * Pure: the 1-based inclusive line range covering the char range [start, end)
+ * — the anchors the selection/excerpt context publishes so the model can
+ * replace_range directly (spec §5.5). A newline belongs to the line it
+ * terminates, so a range ending at a line start stays on the previous line.
+ */
+export function lineRangeOfOffset(
+  doc: string,
+  start: number,
+  end: number,
+): { startLine: number; endLine: number } {
+  const from = Math.min(start, end);
+  const to = Math.max(start, end);
+  const startLine = lineAtOffset(doc, from);
+  const endLine = to > from ? Math.max(startLine, lineAtOffset(doc, to - 1)) : startLine;
+  return { startLine, endLine };
+}
+
 /** One cat -n formatted line. */
 function numbered(line: number, width: number, text: string): string {
   return `${String(line).padStart(width)}  ${text}`;
@@ -199,7 +227,10 @@ export function searchDocument(
   } else {
     matcher = (line) => line.includes(pattern);
   }
-  const maxResults = Math.max(1, Math.min(opts?.maxResults ?? DEFAULT_SEARCH_RESULTS, MAX_SEARCH_RESULTS));
+  const maxResults = Math.max(
+    1,
+    Math.min(opts?.maxResults ?? DEFAULT_SEARCH_RESULTS, MAX_SEARCH_RESULTS),
+  );
   const hits: SearchHit[] = [];
   let totalMatches = 0;
   let line = 1;
@@ -212,14 +243,17 @@ export function searchDocument(
     if (!(isLast && text === '') && matcher(text)) {
       totalMatches += 1;
       if (hits.length < maxResults) {
-        hits.push({ line, text: text.length > MAX_HIT_LINE_CHARS ? text.slice(0, MAX_HIT_LINE_CHARS) : text });
+        const shown = text.length > MAX_HIT_LINE_CHARS ? text.slice(0, MAX_HIT_LINE_CHARS) : text;
+        hits.push({ line, text: shown });
       }
     }
     if (isLast) break;
     from = nl + 1;
     line += 1;
   }
-  return { status: 'ok', hits, totalMatches, totalLines: countLines(doc) };
+  return {
+    status: 'ok', hits, totalMatches, totalLines: countLines(doc),
+  };
 }
 
 /** The search_document payload (the ok variant — errors go through formatToolResult). */
@@ -309,20 +343,16 @@ export function changedLineCount(removedText: string, addedText: string): number
  * model can act on (retryable within the step cap).
  */
 export function formatToolResult(outcome: ToolOutcome): string {
-  switch (outcome.status) {
-    case 'ok':
-      return outcome.message;
-    case 'applied':
-      return `APPLIED — ${outcome.message}`;
-    case 'pending':
-      return `PENDING — ${outcome.message}. The user must Apply or Discard it; do not repeat the call.`;
-    case 'refused':
-      return `REFUSED (${outcome.code}) — ${outcome.message}. ${outcome.hint}`;
-    case 'error': {
-      const anchors = outcome.nearestLines && outcome.nearestLines.length > 0
-        ? ` Nearest matching lines: ${outcome.nearestLines.join(', ')}.`
-        : '';
-      return `ERROR ${outcome.code} — ${outcome.message}.${anchors} ${outcome.hint}`;
-    }
+  if (outcome.status === 'ok') return outcome.message;
+  if (outcome.status === 'applied') return `APPLIED — ${outcome.message}`;
+  if (outcome.status === 'pending') {
+    return `PENDING — ${outcome.message}. The user must Apply or Discard it; do not repeat the call.`;
   }
+  if (outcome.status === 'refused') {
+    return `REFUSED (${outcome.code}) — ${outcome.message}. ${outcome.hint}`;
+  }
+  const anchors = outcome.nearestLines !== undefined && outcome.nearestLines.length > 0
+    ? ` Nearest matching lines: ${outcome.nearestLines.join(', ')}.`
+    : '';
+  return `ERROR ${outcome.code} — ${outcome.message}.${anchors} ${outcome.hint}`;
 }

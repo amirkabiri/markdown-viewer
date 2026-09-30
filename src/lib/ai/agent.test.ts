@@ -249,7 +249,9 @@ describe('createAgent().run — read_document', () => {
 
     expect(shape(events)).toEqual(['text', 'tool', 'tool-result', 'text', 'done']);
     expect(events.filter((e) => e.type === 'tool'))
-      .toEqual([{ type: 'tool', tool: 'read_document', args: {}, body: '' }]);
+      .toEqual([{
+        type: 'tool', tool: 'read_document', args: {}, body: '',
+      }]);
     expect(doneOf(events)).toBe(turn2);
   });
 });
@@ -278,8 +280,13 @@ describe('createAgent().run — replace_text (raw body round-trip)', () => {
       status: 'pending',
       message: 'proposed at lines 1-1 (1 removed / 1 added)',
       diff: {
-        tool: 'replace_text', startLine: 1, endLine: 1,
-        startOffset: 0, endOffset: 1, removedText: 'a\n', addedText: 'b\n',
+        tool: 'replace_text',
+        startLine: 1,
+        endLine: 1,
+        startOffset: 0,
+        endOffset: 1,
+        removedText: 'a\n',
+        addedText: 'b\n',
       },
     };
     const events = await collect(createAgent({ provider, executor }).run(CHAT));

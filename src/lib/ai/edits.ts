@@ -98,7 +98,13 @@ function lineAt(doc: string, offset: number): number {
   return line;
 }
 
-function spanPlan(doc: string, start: number, end: number, replacement: string, matchCount: number): SpanReplacePlan {
+function spanPlan(
+  doc: string,
+  start: number,
+  end: number,
+  replacement: string,
+  matchCount: number,
+): SpanReplacePlan {
   return {
     start,
     end,
@@ -246,9 +252,13 @@ export function planReplaceRange(
   // The final line's terminator: when the document is newline-terminated,
   // replace up to (not through) the trailing '\n' so the document stays
   // newline-terminated; otherwise the range runs to the end.
-  const end = isLastLine
-    ? (endsWithNewline ? doc.length - 1 : doc.length)
-    : starts[endLine];
+  let end = starts[endLine];
+  if (isLastLine) {
+    // The final line's terminator: when the document is newline-terminated,
+    // replace up to (not through) the trailing '\n' so the document stays
+    // newline-terminated; otherwise the range runs to the end.
+    end = endsWithNewline ? doc.length - 1 : doc.length;
+  }
   // Splice hygiene: unless we are replacing through the very end of the
   // document, the body must end with a newline or it glues onto line B+1.
   const replacement = !isLastLine && body !== '' && !body.endsWith('\n') ? `${body}\n` : body;

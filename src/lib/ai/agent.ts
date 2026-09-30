@@ -391,7 +391,9 @@ export function createAgent(deps: AgentDeps) {
           let i = 0;
           while (i < calls.length && executed < maxToolCalls) {
             const call = calls[i];
-            yield { type: 'tool', tool: call.tool, args: call.args, body: call.body };
+            yield {
+              type: 'tool', tool: call.tool, args: call.args, body: call.body,
+            };
             const outcome = deps.executor.execute(call);
             results.push(`TOOL RESULT (${call.tool}): ${formatToolResult(outcome)}`);
             executed += 1;

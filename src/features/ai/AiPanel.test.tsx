@@ -206,37 +206,47 @@ describe('<AiPanel /> — explicit ~4 GB download consent', () => {
 });
 
 describe('<AiPanel /> — visible tool activity', () => {
-  it('renders the tool name, mode label, and the refused outcome for a blocked edit', async () => {
-    seedSettings({ provider: 'openai', baseUrl: 'https://api.example.com/v1', model: 'gpt-test' });
+  it('renders the tool name, op label, and the refused outcome for a blocked edit', async () => {
+    seedSettings({
+      provider: 'openai', baseUrl: 'https://ai.stub.invalid/v1', model: 'stub-model', apiKey: 't',
+    });
     const { fetch, queues } = stubFetch();
     vi.stubGlobal('fetch', fetch);
     const editor = createFakeEditor('# Doc');
     render(<AiPanel editor={editor} t={t} lang="en" />);
 
-    await userEvent.type(composer(), 'append a tail');
+    await userEvent.type(composer(), 'replace the heading');
     await userEvent.click(sendButton());
     await waitFor(() => expect(queues.length).toBeGreaterThan(0));
 
-    const fence = `\`\`\`qalam\n${JSON.stringify({
-      tool: 'edit_document',
-      args: { mode: 'append', text: 'TAIL' },
-    })}\n\`\`\``;
+    const fence = [
+      '```qalam',
+      '{"tool": "replace_text"}',
+      '<<<<<<< SEARCH',
+      '# Doc',
+      '=======',
+      '# New Doc',
+      '>>>>>>> REPLACE',
+    ].join('\n');
     queues[0].delta(`Let me try.\n\n${fence}`);
     queues[0].end();
 
     // Direct editing is OFF → the executor refuses without touching the editor;
     // the entry stays in the chat audit trail.
     const activity = await screen.findByText('Refused');
-    expect(activity.closest('ul')).toHaveTextContent('edit_document');
-    expect(activity.closest('ul')).toHaveTextContent('Append');
+    expect(activity.closest('ul')).toHaveTextContent('replace_text');
+    expect(activity.closest('ul')).toHaveTextContent('Proposing text replacement');
     expect(editor.doc).toBe('# Doc'); // document untouched
     expect(editor.edits).toHaveLength(0); // never even reached the editor
+    expect(screen.queryByRole('group', { name: 'Proposed edit' })).not.toBeInTheDocument();
   });
 });
 
 describe('<AiPanel /> — direct-edit gating', () => {
   it('tells the agent it is read-only when direct editing is off', async () => {
-    seedSettings({ provider: 'openai', baseUrl: 'https://api.example.com/v1', model: 'gpt-test' });
+    seedSettings({
+      provider: 'openai', baseUrl: 'https://ai.stub.invalid/v1', model: 'stub-model', apiKey: 't',
+    });
     const { fetch, requests, queues } = stubFetch();
     vi.stubGlobal('fetch', fetch);
     const editor = createFakeEditor('# Doc');
@@ -248,7 +258,7 @@ describe('<AiPanel /> — direct-edit gating', () => {
 
     const body = requests[0].body as { messages: { role: string; content: string }[] };
     expect(body.messages[0].role).toBe('system');
-    expect(body.messages[0].content).toContain('READ-ONLY access');
+    expect(body.messages[0].content).toContain('READ-ONLY');
 
     // The chat is the audit trail: the agent suggests text in its reply.
     await waitFor(() => expect(queues.length).toBeGreaterThan(0));
@@ -257,11 +267,12 @@ describe('<AiPanel /> — direct-edit gating', () => {
     expect(await screen.findByText(/suggested text/)).toBeInTheDocument();
   });
 
-  it('applies edits via editor.applyEdit when direct editing is on', async () => {
+  it('applies a small insert_at_cursor immediately when direct editing is on', async () => {
     seedSettings({
       provider: 'openai',
-      baseUrl: 'https://api.example.com/v1',
-      model: 'gpt-test',
+      baseUrl: 'https://ai.stub.invalid/v1',
+      model: 'stub-model',
+      apiKey: 't',
       directEdit: true,
     });
     const { fetch, requests, queues } = stubFetch();
@@ -274,29 +285,176 @@ describe('<AiPanel /> — direct-edit gating', () => {
     await waitFor(() => expect(requests.length).toBeGreaterThan(0));
 
     const body = requests[0].body as { messages: { role: string; content: string }[] };
-    expect(body.messages[0].content).not.toContain('READ-ONLY access');
+    expect(body.messages[0].content).not.toContain('READ-ONLY');
 
     await waitFor(() => expect(queues.length).toBeGreaterThan(0));
     const fence = `\`\`\`qalam\n${JSON.stringify({
-      tool: 'edit_document',
-      args: { mode: 'cursor', text: '\nAppended line' },
+      tool: 'insert_at_cursor',
+      args: { text: '\nAppended line' },
     })}\n\`\`\``;
     queues[0].delta(`Done.\n\n${fence}`);
     queues[0].end();
 
     const activity = await screen.findByLabelText('Agent activity');
-    expect(activity).toHaveTextContent('OK');
+    expect(activity).toHaveTextContent('Applied');
     expect(editor.edits[0]).toEqual({ mode: 'cursor', text: '\nAppended line' });
     expect(editor.doc).toBe('# Doc\nAppended line');
   });
 });
 
-describe('<AiPanel /> — selection-aware chat', () => {
-  it('shows the selection chip and pins replace-selection to the captured range', async () => {
+describe('<AiPanel /> — pending-diff cards', () => {
+  it('lands a large replace_text as a card; Apply splices the edit into the document', async () => {
     seedSettings({
       provider: 'openai',
-      baseUrl: 'https://api.example.com/v1',
-      model: 'gpt-test',
+      baseUrl: 'https://ai.stub.invalid/v1',
+      model: 'stub-model',
+      apiKey: 't',
+      directEdit: true,
+    });
+    const { fetch, queues } = stubFetch();
+    vi.stubGlobal('fetch', fetch);
+    // 30 body lines → a whole-block rewrite exceeds the 20-line auto-apply
+    // budget, so the edit lands as a PENDING card, not a direct write.
+    const body = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join('\n');
+    const doc = `# Doc\n\n${body}\n`;
+    const editor = createFakeEditor(doc, [0, 0]);
+    render(<AiPanel editor={editor} t={t} lang="en" />);
+
+    await userEvent.type(composer(), 'rewrite the body');
+    await userEvent.click(sendButton());
+    await waitFor(() => expect(queues.length).toBeGreaterThan(0));
+
+    const newBody = Array.from({ length: 30 }, (_, i) => `verse ${i + 1}`).join('\n');
+    const fence = [
+      '```qalam',
+      '{"tool": "replace_text"}',
+      '<<<<<<< SEARCH',
+      body,
+      '=======',
+      newBody,
+      '>>>>>>> REPLACE',
+    ].join('\n');
+    queues[0].delta(`Proposing.\n\n${fence}`);
+    queues[0].end();
+    // The loop's follow-up turn (after the PENDING result) closes the run.
+    await waitFor(() => expect(queues.length).toBeGreaterThan(1));
+    queues[1].delta('Review the proposed edit.');
+    queues[1].end();
+
+    // The card appears; the document is untouched until Apply.
+    const card = await screen.findByRole('group', { name: 'Proposed edit' });
+    expect(card).toHaveTextContent('verse 1');
+    expect(editor.doc).toBe(doc);
+    expect(screen.getAllByText('Pending review')).toHaveLength(2); // card live region + activity step
+
+    await userEvent.click(within(card).getByRole('button', { name: 'Apply' }));
+
+    // The edit landed through applyEdit (one splice — one undo step).
+    expect(editor.doc).toBe(`# Doc\n\n${newBody}\n`);
+    expect(editor.edits[0]?.mode).toBe('replace-selection');
+    expect(await within(card).findByText('Applied')).toBeInTheDocument();
+    expect(within(card).queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument();
+  });
+
+  it('Discard leaves the document untouched and marks the proposal discarded', async () => {
+    seedSettings({
+      provider: 'openai',
+      baseUrl: 'https://ai.stub.invalid/v1',
+      model: 'stub-model',
+      apiKey: 't',
+      directEdit: true,
+    });
+    const { fetch, queues } = stubFetch();
+    vi.stubGlobal('fetch', fetch);
+    const body = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join('\n');
+    const doc = `# Doc\n\n${body}\n`;
+    const editor = createFakeEditor(doc, [0, 0]);
+    render(<AiPanel editor={editor} t={t} lang="en" />);
+
+    await userEvent.type(composer(), 'rewrite the body');
+    await userEvent.click(sendButton());
+    await waitFor(() => expect(queues.length).toBeGreaterThan(0));
+
+    const fence = [
+      '```qalam',
+      '{"tool": "replace_text"}',
+      '<<<<<<< SEARCH',
+      body,
+      '=======',
+      'ALL NEW TEXT',
+      '>>>>>>> REPLACE',
+    ].join('\n');
+    queues[0].delta(`Proposing.\n\n${fence}`);
+    queues[0].end();
+    // The run must close before the user can send again (busy gates the
+    // composer): the model's follow-up turn after the PENDING result.
+    await waitFor(() => expect(queues.length).toBeGreaterThan(1));
+    queues[1].delta('Review the proposed edit.');
+    queues[1].end();
+
+    const card = await screen.findByRole('group', { name: 'Proposed edit' });
+    await userEvent.click(within(card).getByRole('button', { name: 'Discard' }));
+
+    expect(editor.doc).toBe(doc); // untouched
+    expect(editor.edits).toHaveLength(0);
+    expect(await within(card).findByText('Discarded')).toBeInTheDocument();
+  });
+
+  it('feeds the discard back into the next send so the model never re-proposes blindly', async () => {
+    seedSettings({
+      provider: 'openai',
+      baseUrl: 'https://ai.stub.invalid/v1',
+      model: 'stub-model',
+      apiKey: 't',
+      directEdit: true,
+    });
+    const { fetch, requests, queues } = stubFetch();
+    vi.stubGlobal('fetch', fetch);
+    const body = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join('\n');
+    const editor = createFakeEditor(`# Doc\n\n${body}\n`, [0, 0]);
+    render(<AiPanel editor={editor} t={t} lang="en" />);
+
+    await userEvent.type(composer(), 'rewrite the body');
+    await userEvent.click(sendButton());
+    await waitFor(() => expect(queues.length).toBeGreaterThan(0));
+    const fence = [
+      '```qalam',
+      '{"tool": "replace_text"}',
+      '<<<<<<< SEARCH',
+      body,
+      '=======',
+      'ALL NEW TEXT',
+      '>>>>>>> REPLACE',
+    ].join('\n');
+    queues[0].delta(`Proposing.\n\n${fence}`);
+    queues[0].end();
+
+    const card = await screen.findByRole('group', { name: 'Proposed edit' });
+    await userEvent.click(within(card).getByRole('button', { name: 'Discard' }));
+
+    // The run's follow-up turn ends; the composer unlocks for a new send.
+    await waitFor(() => expect(queues.length).toBeGreaterThan(1));
+    queues[1].delta('Understood — tell me what to change.');
+    queues[1].end();
+    await waitFor(() => expect(composer()).toBeEnabled());
+
+    await userEvent.type(composer(), 'ok, different approach');
+    await userEvent.click(sendButton());
+    await waitFor(() => expect(requests.length).toBeGreaterThan(2));
+
+    const second = requests[2].body as { messages: { role: string; content: string }[] };
+    expect(second.messages[0].content).toMatch(/DISCARDED by the user/);
+    expect(second.messages[0].content).toContain('replace_text');
+  });
+});
+
+describe('<AiPanel /> — selection-aware chat', () => {
+  it('shows the selection chip and anchors the v2 tools to the selection lines', async () => {
+    seedSettings({
+      provider: 'openai',
+      baseUrl: 'https://ai.stub.invalid/v1',
+      model: 'stub-model',
+      apiKey: 't',
       directEdit: true,
     });
     const { fetch, requests, queues } = stubFetch();
@@ -310,25 +468,25 @@ describe('<AiPanel /> — selection-aware chat', () => {
     await userEvent.click(sendButton());
     await waitFor(() => expect(requests.length).toBeGreaterThan(0));
 
-    // The selection-aware prompt (buildSelectionMessages) + the pin directive.
+    // The selection-aware prompt (buildSelectionMessages) + the line anchors.
     const body = requests[0].body as { messages: { role: string; content: string }[] };
-    expect(body.messages[0].content).toContain('"replace-selection" mode');
+    expect(body.messages[0].content).toContain("The user's selection is lines 3-3");
+    expect(body.messages[0].content).toContain('replace_range {"startLine": 3, "endLine": 3}');
     const userMessage = body.messages[body.messages.length - 1];
     expect(userMessage.content).toContain('<selection>\nBody text here\n</selection>');
 
-    // The rewrite lands in the captured range via the pinned applyEdit.
+    // The model goes straight to replace_range on the anchored lines.
     await waitFor(() => expect(queues.length).toBeGreaterThan(0));
-    const fence = `\`\`\`qalam\n${JSON.stringify({
-      tool: 'edit_document',
-      args: { mode: 'replace-selection', text: 'FORMAL TEXT' },
-    })}\n\`\`\``;
+    const fence = [
+      '```qalam',
+      '{"tool": "replace_range", "startLine": 3, "endLine": 3}',
+      'FORMAL TEXT',
+    ].join('\n');
     queues[0].delta(`Certainly.\n\n${fence}`);
     queues[0].end();
 
     const activity = await screen.findByLabelText('Agent activity');
-    expect(activity).toHaveTextContent('Replace selection');
-    expect(activity).toHaveTextContent('OK');
-    expect(editor.edits[0]?.pinnedRange).toEqual([9, 23]);
+    expect(activity).toHaveTextContent('Applied');
     expect(editor.doc).toBe('# Title\n\nFORMAL TEXT');
   });
 });

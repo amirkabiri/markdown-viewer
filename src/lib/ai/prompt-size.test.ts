@@ -24,6 +24,7 @@ describe('agent tool-protocol prompt budget', () => {
     const protocol = agentSystemPrompt();
     const tokens = estimateTokens(protocol);
     // Visible in test output — the number this task must report.
+    // eslint-disable-next-line no-console -- the deliverable IS this measurement
     console.info(`[prompt-size] v2 tool protocol ≈ ${tokens} tokens (${protocol.length} chars); v1 baseline ≈ ${V1_PROTOCOL_TOKENS}`);
     expect(tokens).toBeLessThan(V1_PROTOCOL_TOKENS + 400);
   });

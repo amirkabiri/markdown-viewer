@@ -221,8 +221,7 @@ describe('planReplaceText — structured not-found error', () => {
   });
 
   it('rejects an empty SEARCH block with its own code', () => {
-    expect(planReplaceText('doc', '', 'X').status === 'error'
-      && planReplaceText('doc', '', 'X').code).toBe('BAD_SEARCH');
+    expect(planReplaceText('doc', '', 'X')).toMatchObject({ status: 'error', code: 'BAD_SEARCH' });
   });
 });
 
