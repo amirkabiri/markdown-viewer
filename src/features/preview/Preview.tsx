@@ -21,6 +21,14 @@ import styles from './Preview.module.css';
 /** Legacy BLOCK_SEL — the blocks that auto-direction applies to. */
 const BLOCK_SEL = 'p,h1,h2,h3,h4,h5,h6,li,td,th,figcaption,dd,dt,summary,blockquote';
 
+/** Deep-link re-anchor window cadence and hard stop: late in-article assets
+ *  (logo image, CDN font) reflow the article just after the jump lands; the
+ *  window re-aligns while the target moves and never outlives the cap. */
+const REANCHOR_TICK_MS = 100;
+const REANCHOR_MAX_MS = 3_000;
+/** Sub-pixel slack for "the target has not moved" reads. */
+const REANCHOR_EPSILON_PX = 1;
+
 export interface PreviewProps {
   state: MarkdownPreviewState;
   /** Resolved content direction for the article (shell detects in auto mode). */
@@ -249,24 +257,116 @@ export default function Preview({
   /* Deep-link hash jump: scroll to the location hash target (skipping #d=
      payloads — never a selector) once it exists in the rendered article.
      A missing target is NOT consumed: the next html update retries, which
-     is exactly the async-arrival order. Never scrolls to top. */
+     is exactly the async-arrival order. Never scrolls to top.
+
+     Two hardening rules, both born from measured webkit flakes:
+
+     - Land on a LIVE node only. The target is re-queried inside the rAF,
+       and the once-per-document guard is consumed only when that node is
+       still connected. The async ?file= boot can swap the article between
+       the query and the frame; scrolling a detached subtree used to lose
+       the jump permanently (guard consumed, nothing to retry).
+
+     - Re-anchor while late assets reflow the article. In-article assets
+       with no reserved layout box (the README logo image, the CDN
+       Vazirmatn face) load right after the jump lands and shift the
+       target tens of pixels off the pane top; webkit's own anchoring did
+       not reliably compensate. A bounded window re-runs scrollIntoView
+       on the live target while its content offset moves, and closes on
+       quiescence (fonts loaded, images done, stable reads) or a hard
+       cap — scrollIntoView re-aligns from current layout each pass, so
+       a browser that already compensated natively is a no-op, never a
+       double correction.
+
+     Once-per-document is untouched (the R12 guarantee): the guard is
+     consumed at the live landing, and the window is torn down by this
+     effect's cleanup on the next html commit — a typing-driven re-render
+     closes it and the consumed guard can never re-open it (guarded by
+     the scroll specs). */
+  const reanchorStopRef = useRef<(() => void) | null>(null);
   useEffect(() => {
-    const article = articleRef.current;
     const { hash } = window.location;
-    if (!article || !hash || hash.startsWith('#d=') || hashJumpDoneRef.current) {
+    if (!hash || hash.startsWith('#d=') || hashJumpDoneRef.current) {
       return undefined;
     }
-    let el: Element | null = null;
-    try {
-      el = article.querySelector(decodeURIComponent(hash));
-    } catch {
-      el = document.getElementById(hash.slice(1));
-    }
-    if (!el) return undefined;
-    hashJumpDoneRef.current = true;
-    requestAnimationFrame(() => el?.scrollIntoView({ block: 'start' }));
-    return undefined;
-  }, [state.html, docIdentity]);
+
+    // Live re-query on every attempt: only a connected node in the CURRENT
+    // article is a valid target.
+    const findTarget = (): Element | null => {
+      const article = articleRef.current;
+      if (!article) return null;
+      try {
+        const el = article.querySelector(decodeURIComponent(hash));
+        if (el?.isConnected) return el;
+      } catch {
+        const el = document.getElementById(hash.slice(1));
+        if (el?.isConnected) return el;
+      }
+      return null;
+    };
+
+    if (!findTarget()) return undefined;
+
+    let cancelled = false;
+    let raf = 0;
+
+    /* The bounded re-anchor window (see the effect comment above). */
+    const startReanchor = (landed: Element) => {
+      const container = scrollRef.current;
+      if (!container) return;
+      let timer = 0;
+      let cap = 0;
+      let lastOffset = landed.getBoundingClientRect().top + container.scrollTop;
+      let stableReads = 0;
+      const stop = () => {
+        window.clearInterval(timer);
+        window.clearTimeout(cap);
+        if (reanchorStopRef.current === stop) reanchorStopRef.current = null;
+      };
+      const onTick = () => {
+        const target = findTarget();
+        if (!target) {
+          stop();
+          return;
+        }
+        const offset = target.getBoundingClientRect().top + container.scrollTop;
+        const imgs = articleRef.current?.querySelectorAll('img');
+        const assetsDone = document.fonts.status === 'loaded'
+          && (!imgs || [...imgs].every((img) => img.complete));
+        if (assetsDone && Math.abs(offset - lastOffset) <= REANCHOR_EPSILON_PX) {
+          stableReads += 1;
+          if (stableReads >= 2) stop();
+          return;
+        }
+        stableReads = 0;
+        lastOffset = offset;
+        target.scrollIntoView({ block: 'start' });
+      };
+      timer = window.setInterval(onTick, REANCHOR_TICK_MS);
+      cap = window.setTimeout(stop, REANCHOR_MAX_MS);
+      reanchorStopRef.current = stop;
+    };
+
+    const land = () => {
+      raf = 0;
+      if (cancelled) return;
+      const live = findTarget();
+      // Article replaced mid-frame: nothing landed, nothing consumed —
+      // the next html commit retries on the live subtree.
+      if (!live) return;
+      live.scrollIntoView({ block: 'start' });
+      hashJumpDoneRef.current = true;
+      startReanchor(live);
+    };
+
+    raf = requestAnimationFrame(land);
+    return () => {
+      cancelled = true;
+      if (raf) cancelAnimationFrame(raf);
+      reanchorStopRef.current?.();
+      reanchorStopRef.current = null;
+    };
+  }, [state.html, docIdentity, scrollRef]);
 
   /* TOC scroll spy (legacy updateSpy): rAF-throttled, reports the active
      heading id to the sidebar TOC. */
