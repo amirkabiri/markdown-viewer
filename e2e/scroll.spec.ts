@@ -44,6 +44,49 @@ async function bootReadme(page: Page) {
   return editor;
 }
 
+/** Deep-link assertions measure GEOMETRY, and the app re-anchors the jump
+ *  while late in-article assets (the README logo image, the CDN font face)
+ *  reflow the article — so the gap is only meaningful once the layout is
+ *  final. Polls to quiescence: no pending font loads and two identical
+ *  half-px offset reads a beat apart. No sleeps. */
+async function awaitDeepLinkSettled(page: Page, selector: string) {
+  await expect.poll(async () => page.evaluate(async (sel) => {
+    const read = () => {
+      const sc = document.querySelector('div:has(> article)');
+      const target = sc?.querySelector(sel);
+      return target && sc
+        ? Math.round((target.getBoundingClientRect().top + sc.scrollTop) * 2) / 2
+        : Number.NaN;
+    };
+    const before = read();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 150);
+    });
+    return document.fonts.status === 'loaded' && !Number.isNaN(before) && before === read();
+  }, selector), { timeout: 10_000 }).toBe(true);
+}
+
+/** Resolves once every <img> matched by the selector has finished loading
+ *  (complete or failed) — gate assertions on a specific late asset. */
+async function awaitImagesSettled(page: Page, selector: string) {
+  await expect.poll(async () => page.evaluate((sel) => {
+    const imgs = [...document.querySelectorAll('article img')]
+      .filter((img): img is HTMLImageElement => img instanceof HTMLImageElement)
+      .filter((img) => img.matches(sel));
+    return imgs.length > 0 && imgs.every((img) => img.complete);
+  }, selector), { timeout: 10_000 }).toBe(true);
+}
+
+/** The vertical distance between the preview pane top and a target element. */
+function deepLinkGap(page: Page, selector: string) {
+  return page.evaluate((sel) => {
+    const sc = document.querySelector('div:has(> article)');
+    const target = sc?.querySelector(sel);
+    if (!sc || !target) return Number.POSITIVE_INFINITY;
+    return Math.abs(target.getBoundingClientRect().top - sc.getBoundingClientRect().top);
+  }, selector);
+}
+
 /** Types text at the editor caret and waits for the debounced preview update
  *  that proves the typing-driven re-render committed (no sleeps — the marker
  *  text only appears in the article once the debounce fired). The marker is
@@ -139,6 +182,20 @@ test.describe('document scrolling', () => {
     expect(Math.abs(footerBox!.y + footerBox!.height - viewportHeight)).toBeLessThanOrEqual(EPS_PX);
   });
 });
+
+/** Holds the ?file= document fetch back by the given delay: the hash target
+ *  then arrives well after the load event, when the browser's own deferred
+ *  fragment scroll has long given up — the APP's jump becomes the only
+ *  mechanism under test (regression check: break it, watch this go red). */
+async function holdDocumentFetch(page: Page, ms: number) {
+  await page.route('**/README.md', async (route) => {
+    const response = await route.fetch();
+    await new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
+    await route.fulfill({ response });
+  });
+}
 
 test.describe('typing keeps the scroll position', () => {
   test('a typing pause does not drag the panes back to the top', async ({ page }) => {
@@ -256,6 +313,7 @@ test.describe('typing keeps the scroll position', () => {
   test('a ?file= deep link with a hash lands on the target heading', async ({ page }) => {
     // The hash must survive the async boot: the identity is set first, the
     // content renders right after — the jump fires once the target exists.
+    await holdDocumentFetch(page, 600);
     await page.goto('/?file=README.md#why-qalam');
     const scroll = previewScroll(page);
 
@@ -264,14 +322,46 @@ test.describe('typing keeps the scroll position', () => {
       .poll(() => scroll.evaluate((el) => el.scrollTop), { timeout: 5_000 })
       .toBeGreaterThan(0);
 
-    // block: 'start' — the heading aligns with the top of the pane. The
-    // jump fires in a rAF right after injection, while the CDN font may
-    // still be swapping, so the measured gap carries that reflow slack.
-    const gap = await scroll.evaluate((el) => {
-      const target = el.querySelector('h2#why-qalam');
-      if (!target) return Number.POSITIVE_INFINITY;
-      return Math.abs(target.getBoundingClientRect().top - el.getBoundingClientRect().top);
+    // block: 'start' — the heading aligns with the top of the pane and STAYS
+    // there: the app re-anchors the jump while late in-article assets (the
+    // README logo, the CDN font) reflow the article, so the asserted gap is
+    // the SETTLED end state, not a snapshot taken mid-reflow.
+    await awaitDeepLinkSettled(page, 'h2#why-qalam');
+    expect(await deepLinkGap(page, 'h2#why-qalam')).toBeLessThanOrEqual(48);
+  });
+
+  test('a late-loading in-article asset cannot drag the deep link off target', async ({ page }) => {
+    // The README logo ships no reserved layout box: while it loads, the
+    // article reflows and the anchored heading used to end up ~90 px below
+    // the pane top on webkit (gap measured against the PRE-image layout).
+    // Hold the logo back until the jump has provably landed, then release
+    // it — the reflow now hits exactly in the post-jump window where the
+    // drift used to happen — and require the app to still finish with the
+    // heading at the pane top (the re-anchor contract).
+    let releaseLogo: () => void = () => {};
+    const released = new Promise<void>((resolve) => {
+      releaseLogo = resolve;
     });
-    expect(gap).toBeLessThanOrEqual(48);
+    await holdDocumentFetch(page, 600);
+    await page.route('**/logo.svg', async (route) => {
+      // Fetch the real response now; deliver it only when the test releases it.
+      const response = await route.fetch();
+      await released;
+      await route.fulfill({ response });
+    });
+    await page.goto('/?file=README.md#why-qalam');
+    const scroll = previewScroll(page);
+
+    await expect(page.locator('article h2#why-qalam')).toHaveText(/Why Qalam/);
+    await expect
+      .poll(() => scroll.evaluate((el) => el.scrollTop), { timeout: 5_000 })
+      .toBeGreaterThan(0);
+    releaseLogo();
+
+    // Only assert once the held-back asset has actually landed, then the
+    // layout around the target must settle to the pane-top alignment.
+    await awaitImagesSettled(page, 'img[src*="logo"]');
+    await awaitDeepLinkSettled(page, 'h2#why-qalam');
+    expect(await deepLinkGap(page, 'h2#why-qalam')).toBeLessThanOrEqual(48);
   });
 });
