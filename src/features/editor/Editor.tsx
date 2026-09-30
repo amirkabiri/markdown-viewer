@@ -13,6 +13,8 @@ import LineGutter from './LineGutter';
 import { createDomLineMeasurer } from './lineMeasurer';
 import type { LineMeasurer } from './lineMeasurer';
 import { gutterWidthStyle } from './lineNumbers';
+import SelectionToolbar from './SelectionToolbar';
+import type { CaretMeasurer } from './caretGeometry';
 import { useLineNumbers } from './useLineNumbers';
 import type { EditorController } from './useEditorController';
 
@@ -31,6 +33,9 @@ export interface EditorProps {
    *  to express an optional prop on a function component. */
   // eslint-disable-next-line react/require-default-props
   createMeasurer?: (textarea: HTMLTextAreaElement) => LineMeasurer;
+  /** Measurement seam for the selection toolbar's caret point (same pattern). */
+  // eslint-disable-next-line react/require-default-props
+  createCaretMeasurer?: (textarea: HTMLTextAreaElement) => CaretMeasurer;
 }
 
 /** Module-level so the default never re-creates the measurer per render. */
@@ -39,6 +44,7 @@ const defaultCreateMeasurer = createDomLineMeasurer;
 export default function Editor({
   controller, dir, ariaLabel, placeholder, readOnly,
   createMeasurer = defaultCreateMeasurer,
+  createCaretMeasurer,
 }: EditorProps) {
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const lineNumbers = useLineNumbers({
@@ -79,6 +85,13 @@ export default function Editor({
         scrollTop={lineNumbers.scrollTop}
         viewportHeight={lineNumbers.viewportHeight}
         lineHeight={lineNumbers.lineHeight}
+      />
+      <SelectionToolbar
+        textareaRef={editorRef}
+        controller={controller}
+        dir={dir}
+        readOnly={readOnly}
+        createMeasurer={createCaretMeasurer}
       />
     </div>
   );

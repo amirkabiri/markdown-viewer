@@ -3,7 +3,11 @@
 // production measurer mirrors the document into a hidden div that replicates
 // the textarea's wrap width and typography — the textarea is the wrap
 // oracle, so soft-wrap heights match exactly. Tests inject scripted fakes
-// instead (house style: fakes over mocks, TESTING.md).
+// instead (house style: fakes over mocks, TESTING.md). The mirror base
+// (creation + typography) is shared with the selection toolbar's caret
+// measurer (textareaMirror.ts / caretGeometry.ts).
+
+import { createHiddenMirror, syncMirrorTypography } from './textareaMirror';
 
 /**
  * Wrapped-row heights for one measurement pass. Contract: called at most
@@ -19,13 +23,6 @@ export interface LineMeasurer {
   dispose?(): void;
 }
 
-/** Typography and wrapping properties copied from the textarea's computed
- *  style onto the mirror — everything that can change line breaking. */
-const MIRROR_STYLE_PROPS = [
-  'fontFamily', 'fontSize', 'fontWeight', 'fontStyle',
-  'lineHeight', 'letterSpacing', 'wordSpacing', 'tabSize', 'direction',
-] as const;
-
 /**
  * The real measurer: a `visibility: hidden`, `pointer-events: none`,
  * `aria-hidden` mirror kept inside the editor wrapper. Each measure pass
@@ -38,19 +35,8 @@ const MIRROR_STYLE_PROPS = [
  * long documents.
  */
 export function createDomLineMeasurer(textarea: HTMLTextAreaElement): LineMeasurer {
-  const mirror = document.createElement('div');
-  mirror.setAttribute('aria-hidden', 'true');
+  const mirror = createHiddenMirror(textarea);
   const mirrorStyle = mirror.style;
-  mirrorStyle.position = 'absolute';
-  mirrorStyle.top = '0';
-  mirrorStyle.insetInlineStart = '0';
-  mirrorStyle.visibility = 'hidden';
-  mirrorStyle.pointerEvents = 'none';
-  // The textarea's UA wrapping rules; white-space/overflow-wrap replicate
-  // soft wrap, everything typographic is copied per measure pass below.
-  mirrorStyle.whiteSpace = 'pre-wrap';
-  mirrorStyle.overflowWrap = 'break-word';
-  (textarea.parentElement ?? document.body).appendChild(mirror);
 
   return {
     measureHeights(lines: readonly string[]): number[] {
@@ -62,10 +48,7 @@ export function createDomLineMeasurer(textarea: HTMLTextAreaElement): LineMeasur
         - (parseFloat(cs.paddingLeft) || 0)
         - (parseFloat(cs.paddingRight) || 0);
       mirrorStyle.width = `${contentWidth}px`;
-      for (let i = 0; i < MIRROR_STYLE_PROPS.length; i += 1) {
-        const prop = MIRROR_STYLE_PROPS[i];
-        mirrorStyle[prop] = cs[prop];
-      }
+      syncMirrorTypography(mirror, cs);
 
       // One block per logical line; an empty line gets a zero-width space
       // so it still produces its strut row (one row tall), like the

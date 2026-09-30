@@ -20,6 +20,8 @@ import type { KeyboardEvent } from 'react';
 import { useT } from '../../app/i18n';
 import type { EditMode } from '../../lib/ai/edits';
 
+import { applyAction } from './markdownActions';
+import type { FormatAction } from './markdownActions';
 import type { EditorApi } from './api';
 
 export interface EditorControllerOptions {
@@ -44,6 +46,14 @@ export interface EditorController {
   loadDocument: (text: string) => void;
   /** Tab inserts two spaces instead of moving focus (legacy bindEditor). */
   handleKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>) => void;
+  /**
+   * Apply a selection-toolbar formatting action over a range (the toolbar's
+   * PINNED selection — captured at menu-open — or the live one). One pure
+   * markdownActions result written through writeRange, so every action is a
+   * single native undo step and fires onDocChange (autosave). The frozen
+   * EditorApi is untouched; this is the controller's own surface.
+   */
+  applyFormat: (action: FormatAction, range?: [number, number]) => void;
   /** Focuses the textarea (new-document flow). */
   focus: () => void;
 }
@@ -63,6 +73,42 @@ function targetRange(mode: EditMode, a: number, b: number, len: number): [number
   if (mode === 'replace-document') return [0, len];
   if (mode === 'append') return [len, len];
   return [a, a]; // cursor
+}
+
+/**
+ * The one shared write primitive (the legacy applyEdit mechanics): focus the
+ * textarea, optionally attempt the undo-stack-preserving
+ * document.execCommand('insertText') over [start, end), fall back to
+ * setRangeText — identical behavior either way — then pin the caret at
+ * [selStart, selEnd). `exec` gates the execCommand attempt (applyEdit only
+ * tries it for caret/replace-selection edits — legacy parity); the pinned
+ * selection defaults to the end of the inserted text.
+ */
+function writeRange(
+  el: HTMLTextAreaElement,
+  start: number,
+  end: number,
+  inserted: string,
+  selStart?: number,
+  selEnd?: number,
+  exec = true,
+): void {
+  el.focus();
+  let done = false;
+  if (exec && inserted !== '') {
+    try {
+      el.setSelectionRange(start, end);
+      done = document.execCommand('insertText', false, inserted);
+    } catch {
+      done = false; // execCommand may be undefined / throw — fall back
+    }
+  }
+  if (!done) el.setRangeText(inserted, start, end, 'end');
+  const caretStart = selStart ?? start + inserted.length;
+  const caretEnd = selEnd ?? caretStart;
+  if (el.selectionStart !== caretStart || el.selectionEnd !== caretEnd) {
+    el.setSelectionRange(caretStart, caretEnd);
+  }
 }
 
 export function useEditorController(opts: EditorControllerOptions = {}): EditorController {
@@ -143,21 +189,39 @@ export function useEditorController(opts: EditorControllerOptions = {}): EditorC
       : clampRange(el.selectionStart ?? 0, el.selectionEnd ?? 0, len);
     const [insStart, insEnd] = targetRange(mode, a, b, len);
 
-    el.focus();
-    let done = false;
-    if ((mode === 'cursor' || mode === 'replace-selection') && inserted !== '') {
-      try {
-        el.setSelectionRange(insStart, insEnd);
-        done = document.execCommand('insertText', false, inserted);
-      } catch {
-        done = false; // execCommand may be undefined / throw — fall back
-      }
-    }
-    if (!done) el.setRangeText(inserted, insStart, insEnd, 'end');
+    writeRange(
+      el,
+      insStart,
+      insEnd,
+      inserted,
+      insStart + inserted.length,
+      insStart + inserted.length,
+      // Legacy parity: the execCommand attempt only happens for the
+      // caret/replace-selection modes with non-empty text.
+      (mode === 'cursor' || mode === 'replace-selection') && inserted !== '',
+    );
     textRef.current = el.value;
     setText(el.value); // input-equivalent state update: preview/counts stay live
     notifyDocChange(el.value);
     return true;
+  }, [notifyDocChange]);
+
+  const applyFormat = useCallback((action: FormatAction, range?: [number, number]) => {
+    const el = elRef.current;
+    if (!el) return;
+    const len = el.value.length;
+    const [a, b] = range
+      ? clampRange(range[0], range[1], len)
+      : clampRange(el.selectionStart ?? 0, el.selectionEnd ?? 0, len);
+    // applyAction returns the FULL new document; the write primitive wants
+    // just the [a, b) segment — everything between the unchanged edges.
+    const after = el.value.slice(b);
+    const result = applyAction(el.value, a, b, action);
+    const inserted = result.text.slice(a, result.text.length - after.length);
+    writeRange(el, a, b, inserted, result.selStart, result.selEnd);
+    textRef.current = el.value;
+    setText(el.value); // preview/counts/autosave stay live, exactly like an edit
+    notifyDocChange(el.value);
   }, [notifyDocChange]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -191,6 +255,7 @@ export function useEditorController(opts: EditorControllerOptions = {}): EditorC
     syncFromTextarea,
     loadDocument,
     handleKeyDown,
+    applyFormat,
     focus,
   };
 }
