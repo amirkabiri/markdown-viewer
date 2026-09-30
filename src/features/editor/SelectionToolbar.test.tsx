@@ -311,6 +311,58 @@ describe('<SelectionToolbar />', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
+  it('hides when the window loses focus', async () => {
+    vi.useFakeTimers();
+    render(<Harness />);
+    act(() => controller().loadDocument('hello world'));
+
+    select(6, 11);
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(menu()).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new Event('blur'));
+    });
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('suppresses the menu during IME composition, resumes after', async () => {
+    vi.useFakeTimers();
+    render(<Harness />);
+    act(() => controller().loadDocument('hello world'));
+
+    select(6, 11);
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(menu()).toBeInTheDocument();
+
+    // Composition starts → the menu hides, and selection churn while
+    // composing never shows it again.
+    act(() => {
+      textarea().dispatchEvent(new Event('compositionstart'));
+    });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    select(0, 4);
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+    // After compositionend a fresh selection shows the menu again.
+    act(() => {
+      textarea().dispatchEvent(new Event('compositionend'));
+    });
+    select(0, 4);
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(menu()).toBeInTheDocument();
+  });
+
   it('hides on pointer-down in the textarea', async () => {
     render(<Harness />);
     act(() => controller().loadDocument('hello world'));

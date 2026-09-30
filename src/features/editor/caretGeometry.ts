@@ -72,11 +72,14 @@ export function createDomCaretMeasurer(textarea: HTMLTextAreaElement): CaretMeas
       syncMirrorTypography(mirror, cs);
 
       // Document up to the offset, then the zero-width marker: its rect is
-      // the caret point (an empty inline element lands exactly where the
-      // next glyph would go, on the correct visual row after a trailing
-      // newline, on the correct side under RTL).
-      mirror.replaceChildren(document.createTextNode(el.value.slice(0, index)), document.createElement('span'));
-      const marker = mirror.lastElementChild;
+      // the caret point. The marker carries a zero-width space — an EMPTY
+      // inline gets parked at the physical line edge by WebKit regardless
+      // of direction, while a zero-width GLYPH participates in the flow and
+      // lands where the next glyph would go (correct visual row after a
+      // trailing newline, correct side under RTL).
+      const marker = document.createElement('span');
+      marker.textContent = '\u200B';
+      mirror.replaceChildren(document.createTextNode(el.value.slice(0, index)), marker);
       if (!(marker instanceof HTMLElement)) return null;
       const rect = marker.getBoundingClientRect();
       const wrapRect = wrapper.getBoundingClientRect();
