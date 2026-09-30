@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+/* Parallel agent worktrees each host their own preview server; a fixed
+   port cross-tests whoever grabbed 4173 first. CI keeps the default. */
+const port = Number(process.env.E2E_PORT ?? 4173);
+
 /* E2E tests run against a production build (vite build + vite preview) so the
    suite exercises the same bundle that gets deployed. */
 export default defineConfig({
@@ -12,15 +16,15 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: `http://localhost:${port}`,
     /* Deterministic initial theme: the app falls back to
        prefers-color-scheme when no stored preference exists. */
     colorScheme: 'light',
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'pnpm run build && pnpm run preview --port 4173 --strictPort',
-    url: 'http://localhost:4173',
+    command: `pnpm run build && pnpm run preview --port ${port} --strictPort`,
+    url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },
