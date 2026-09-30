@@ -11,7 +11,7 @@ import { I18nProvider, useT } from './app/i18n';
 import { PersistenceProvider, useDocumentRepository } from './app/persistence';
 import { ThemeProvider, useTheme } from './app/theme';
 import { ToastProvider, useToast } from './components/Toast';
-import { AiPanel, aiToastQueue } from './features/ai';
+import { AiPanel, aiToastQueue, previewExcerptQueue } from './features/ai';
 import OpenDialog from './features/documents/OpenDialog';
 import { useDocuments } from './features/documents/useDocuments';
 import { EditorProvider, useEditorController } from './features/editor';
@@ -106,6 +106,13 @@ function Shell({ lang, onToggleLang }: ShellProps) {
       toast(item.content);
     });
   }), [toast]);
+
+  /* A preview-selection "Ask AI about this" opens the panel (mounting it if
+     the toggle had it unmounted) — the panel adopts the waiting payload from
+     previewExcerptQueue itself on mount. */
+  useEffect(() => previewExcerptQueue.subscribe(() => {
+    setAiOpen(true);
+  }), []);
 
   const previewState = useMarkdownPreview(editorCtl.text, {
     baseUrl: documents.doc?.baseUrl,

@@ -12,6 +12,9 @@ import type { MarkdownTocEntry } from '../../lib/markdown';
 export interface MarkdownPreviewState {
   /** Sanitized, enhanced HTML ready for injection. */
   html: string;
+  /** The EXACT source text `html` was rendered from (the debounce mirror) —
+   *  the key the selection→source anchoring maps against. */
+  source: string;
   /** h2–h4 table-of-contents entries in document order. */
   toc: MarkdownTocEntry[];
   /** Set when marked failed to parse (an error-note is rendered instead). */
@@ -24,7 +27,7 @@ export interface MarkdownPreviewState {
 export { RENDER_DEBOUNCE_MS };
 
 const EMPTY: MarkdownPreviewState = {
-  html: '', toc: [], error: null, tooLarge: false,
+  html: '', source: '', toc: [], error: null, tooLarge: false,
 };
 
 export interface MarkdownPreviewOptions {
@@ -64,6 +67,7 @@ export function useMarkdownPreview(
     const result = renderMarkdown(debounced, { baseUrl });
     return {
       html: result.html,
+      source: debounced,
       toc: result.toc,
       error: result.error ?? null,
       tooLarge: false,

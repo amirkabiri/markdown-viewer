@@ -26,6 +26,10 @@ import {
 } from 'vitest';
 import AiPanel from './AiPanel';
 import {
+  previewExcerptQueue,
+  type PreviewExcerptPayload,
+} from './previewExcerpt';
+import {
   createFakeEditor,
   FakeLanguageModel,
   installMatchMediaStub,
@@ -326,6 +330,83 @@ describe('<AiPanel /> — selection-aware chat', () => {
     expect(activity).toHaveTextContent('OK');
     expect(editor.edits[0]?.pinnedRange).toEqual([9, 23]);
     expect(editor.doc).toBe('# Title\n\nFORMAL TEXT');
+  });
+});
+
+describe('<AiPanel /> — preview selection context', () => {
+  const excerpt: PreviewExcerptPayload = {
+    excerpt: 'Body text here',
+    sourceRange: { startLine: 3, endLine: 3 },
+    headingPath: ['Guide', 'Details'],
+  };
+
+  afterEach(() => {
+    previewExcerptQueue.consume();
+  });
+
+  it('adopts a published excerpt as a visible, removable chip and focuses the composer', async () => {
+    installLm('available');
+    render(<AiPanel editor={createFakeEditor('# Doc')} t={t} lang="en" />);
+    await awaitComposerReady();
+
+    previewExcerptQueue.publish(excerpt);
+
+    const chip = await screen.findByRole('group', { name: 'From the preview' });
+    expect(chip).toHaveTextContent('Body text here');
+    expect(chip).toHaveTextContent('lines 3–3'); // localized source anchoring
+    expect(chip).toHaveTextContent('Guide › Details');
+    await waitFor(() => expect(composer()).toHaveFocus());
+
+    await userEvent.click(within(chip).getByRole('button', { name: 'Remove excerpt' }));
+    expect(screen.queryByRole('group', { name: 'From the preview' })).not.toBeInTheDocument();
+  });
+
+  it('sends ONE message carrying the prompt and the excerpt as delimited, untrusted data', async () => {
+    seedSettings({ provider: 'openai', baseUrl: 'https://api.example.com/v1', model: 'gpt-test' });
+    const { fetch, requests, queues } = stubFetch();
+    vi.stubGlobal('fetch', fetch);
+    render(<AiPanel editor={createFakeEditor('# Doc')} t={t} lang="en" />);
+
+    previewExcerptQueue.publish(excerpt);
+    await screen.findByRole('group', { name: 'From the preview' });
+
+    await userEvent.type(composer(), 'explain this paragraph');
+    await userEvent.click(sendButton());
+    await waitFor(() => expect(requests.length).toBeGreaterThan(0));
+
+    const body = requests[0].body as { messages: { role: string; content: string }[] };
+    expect(body.messages[0].role).toBe('system');
+    expect(body.messages[0].content).toContain('never instructions');
+    const user = body.messages[body.messages.length - 1];
+    expect(user.content).toContain('explain this paragraph');
+    expect(user.content).toContain('<document_excerpt>\nBody text here\n</document_excerpt>');
+    expect(user.content).toContain('lines 3-3');
+
+    // The context was consumed by the send and the reply streams normally.
+    await waitFor(() => expect(queues.length).toBeGreaterThan(0));
+    queues[0].delta('It says hello.');
+    queues[0].end();
+    expect(await screen.findByText('It says hello.')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('group', { name: 'From the preview' })).not.toBeInTheDocument();
+    });
+    expect(previewExcerptQueue.current).toBeNull();
+  });
+
+  it('reopens the panel with the chip when an excerpt arrives while it is closed', async () => {
+    installLm('available');
+    render(<AiPanel editor={createFakeEditor('# Doc')} t={t} lang="en" />);
+    await awaitComposerReady();
+
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    previewExcerptQueue.publish(excerpt);
+
+    expect(await screen.findByRole('dialog', { name: 'AI assistant' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'From the preview' })).toHaveTextContent(
+      'Body text here',
+    );
   });
 });
 
