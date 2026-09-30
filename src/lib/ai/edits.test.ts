@@ -6,7 +6,12 @@
 // stubbing: edits.ts only touches the BUILTIN_SYSTEM_PROMPT constant.
 
 import { describe, expect, it } from 'vitest';
-import { buildSelectionMessages, computeEdit } from './edits';
+import {
+  buildSelectionMessages,
+  computeEdit,
+  planReplaceRange,
+  planReplaceText,
+} from './edits';
 import type { EditorSnapshot } from './edits';
 
 const snap = (value: string, selectionStart: number, selectionEnd: number): EditorSnapshot => ({
@@ -112,6 +117,158 @@ describe('computeEdit — unicode / Persian (UTF-16 index math, as in textareas)
   });
 });
 
+/* ---------------- planReplaceText (v2 content-anchored replace) ---------------- */
+
+describe('planReplaceText — exact match', () => {
+  it('plans a single-span replacement with char offsets and line anchors', () => {
+    const doc = '# Title\n\nold line\nkeep me\n';
+    const plan = planReplaceText(doc, 'old line', 'new line');
+    expect(plan.status).toBe('ok');
+    if (plan.status !== 'ok') return;
+    expect(plan.plan.start).toBe(doc.indexOf('old line'));
+    expect(plan.plan.end).toBe(plan.plan.start + 'old line'.length);
+    expect(plan.plan.replacement).toBe('new line');
+    expect(plan.plan.matchCount).toBe(1);
+    expect(plan.plan.startLine).toBe(3);
+    expect(plan.plan.endLine).toBe(3);
+    // the plan splices into the document exactly
+    expect(doc.slice(0, plan.plan.start) + plan.plan.replacement + doc.slice(plan.plan.end))
+      .toBe('# Title\n\nnew line\nkeep me\n');
+  });
+
+  it('replaces across multiple lines in one span', () => {
+    const doc = 'a\nb\nc\nd\n';
+    const plan = planReplaceText(doc, 'b\nc', 'X');
+    expect(plan.status).toBe('ok');
+    if (plan.status !== 'ok') return;
+    expect(plan.plan.startLine).toBe(2);
+    expect(plan.plan.endLine).toBe(3);
+    expect(doc.slice(0, plan.plan.start) + plan.plan.replacement + doc.slice(plan.plan.end))
+      .toBe('a\nX\nd\n');
+  });
+
+  it('reports the match count when the SEARCH text occurs twice (occurrence first)', () => {
+    const doc = 'same\nmiddle\nsame\n';
+    const plan = planReplaceText(doc, 'same', 'NEW', 'first');
+    expect(plan.status).toBe('ok');
+    if (plan.status !== 'ok') return;
+    expect(plan.plan.matchCount).toBe(2); // ambiguity surfaced, not hidden
+    expect(doc.slice(plan.plan.start, plan.plan.end)).toBe('same');
+    expect(plan.plan.start).toBe(0); // the FIRST occurrence is targeted
+  });
+
+  it('replaces every occurrence with occurrence all, as one span (single undo step)', () => {
+    const doc = 'x foo y\nfoo\nend foo\n';
+    const plan = planReplaceText(doc, 'foo', 'bar', 'all');
+    expect(plan.status).toBe('ok');
+    if (plan.status !== 'ok') return;
+    expect(plan.plan.matchCount).toBe(3);
+    const next = doc.slice(0, plan.plan.start) + plan.plan.replacement + doc.slice(plan.plan.end);
+    expect(next).toBe('x bar y\nbar\nend bar\n');
+  });
+
+  it('non-overlapping all-replacement never matches inside earlier replacements', () => {
+    const doc = 'aaaa\n';
+    const plan = planReplaceText(doc, 'aa', 'b', 'all');
+    expect(plan.status).toBe('ok');
+    if (plan.status !== 'ok') return;
+    expect(plan.plan.matchCount).toBe(2);
+    expect(doc.slice(0, plan.plan.start) + plan.plan.replacement + doc.slice(plan.plan.end))
+      .toBe('bb\n');
+  });
+});
+
+describe('planReplaceText — whitespace-tolerant fallback', () => {
+  it('matches when only whitespace drifted (spaces vs newline, indentation)', () => {
+    const doc = 'function a() {\n    return 1;\n}\n';
+    const plan = planReplaceText(doc, 'function a() {\n  return 1;\n}', 'REPLACED');
+    expect(plan.status).toBe('ok');
+    if (plan.status !== 'ok') return;
+    expect(doc.slice(plan.plan.start, plan.plan.end)).toBe('function a() {\n    return 1;\n}');
+    expect(plan.plan.replacement).toBe('REPLACED');
+  });
+
+  it('keeps exact matching preferred: a whitespace-drifted match never wins over the exact one', () => {
+    const doc = 'a  b\na b\n';
+    const plan = planReplaceText(doc, 'a b', 'X');
+    expect(plan.status).toBe('ok');
+    if (plan.status !== 'ok') return;
+    expect(plan.plan.start).toBe(5); // exact second line, not the drifted first
+  });
+});
+
+describe('planReplaceText — structured not-found error', () => {
+  it('returns NOT_FOUND with the nearest lines carrying a fragment of the SEARCH text', () => {
+    const doc = '# Intro\n\nThe quick brown fox\njumps over the lazy dog\n\nThe quick brown cat\n';
+    const plan = planReplaceText(doc, 'The quick brown fox\ndid something else', 'X');
+    expect(plan).toMatchObject({
+      status: 'error',
+      code: 'NOT_FOUND',
+    });
+    if (plan.status !== 'error') return;
+    expect(plan.nearestLines).toContain(3); // the line sharing the first-line probe
+    expect(plan.hint).toMatch(/read_document|re-read/i);
+  });
+
+  it('returns no anchors when nothing resembles the SEARCH text', () => {
+    const plan = planReplaceText('# doc\n', 'zzzz absent', 'X');
+    expect(plan).toEqual({
+      status: 'error',
+      code: 'NOT_FOUND',
+      hint: expect.any(String),
+      nearestLines: [],
+    });
+  });
+
+  it('rejects an empty SEARCH block with its own code', () => {
+    expect(planReplaceText('doc', '', 'X')).toMatchObject({ status: 'error', code: 'BAD_SEARCH' });
+  });
+});
+
+/* ---------------- planReplaceRange (v2 line-range replace + staleness) ---------------- */
+
+describe('planReplaceRange', () => {
+  const basis = '# Title\n\nline three\nline four\nline five\n';
+
+  it('plans a whole-line replacement with correct char offsets', () => {
+    const plan = planReplaceRange(basis, basis, 3, 4, 'REPLACED');
+    expect(plan.status).toBe('ok');
+    if (plan.status !== 'ok') return;
+    expect(basis.slice(plan.plan.start, plan.plan.end)).toBe('line three\nline four\n');
+    expect(basis.slice(0, plan.plan.start) + plan.plan.replacement + basis.slice(plan.plan.end))
+      .toBe('# Title\n\nREPLACED\nline five\n');
+  });
+
+  it('appends a newline when the body would glue onto the following line', () => {
+    const plan = planReplaceRange(basis, basis, 3, 4, 'REPLACED');
+    expect(plan.status).toBe('ok');
+    if (plan.status !== 'ok') return;
+    expect(plan.plan.replacement).toBe('REPLACED\n');
+  });
+
+  it('replaces the final line, keeping the document newline-terminated (no stray additions)', () => {
+    const plan = planReplaceRange(basis, basis, 5, 5, 'last');
+    expect(plan.status).toBe('ok');
+    if (plan.status !== 'ok') return;
+    expect(basis.slice(0, plan.plan.start) + plan.plan.replacement + basis.slice(plan.plan.end))
+      .toBe('# Title\n\nline three\nline four\nlast\n');
+  });
+
+  it('reports STALE_RANGE when the document changed since the last read', () => {
+    const plan = planReplaceRange(`${basis}user typed\n`, basis, 3, 3, 'X');
+    expect(plan).toMatchObject({ status: 'error', code: 'STALE_RANGE' });
+    if (plan.status !== 'error') return;
+    expect(plan.totalLines).toBe(6); // the CURRENT document's line count
+  });
+
+  it('reports BAD_RANGE for non-integer, zero, or inverted lines', () => {
+    expect(planReplaceRange(basis, basis, 0, 2, 'X')).toMatchObject({ status: 'error', code: 'BAD_RANGE' });
+    expect(planReplaceRange(basis, basis, 3, 2, 'X')).toMatchObject({ status: 'error', code: 'BAD_RANGE' });
+    expect(planReplaceRange(basis, basis, 1.5, 2, 'X')).toMatchObject({ status: 'error', code: 'BAD_RANGE' });
+    expect(planReplaceRange(basis, basis, 1, 99, 'X')).toMatchObject({ status: 'error', code: 'BAD_RANGE' });
+  });
+});
+
 /* ---------------- buildSelectionMessages ---------------- */
 
 describe('buildSelectionMessages', () => {
@@ -120,7 +277,7 @@ describe('buildSelectionMessages', () => {
     expect(msgs).toHaveLength(2);
     expect(msgs[0].role).toBe('system');
     expect(msgs[0].content).toContain('Apply their instruction to that selection');
-    expect(msgs[0].content).toContain('Return ONLY the edited selection as Markdown');
+    expect(msgs[0].content).toContain('return ONLY the edited selection as Markdown');
     expect(msgs[0].content).toContain('Markdown assistant'); // restates the builtin rules
     expect(msgs[1].role).toBe('user');
   });

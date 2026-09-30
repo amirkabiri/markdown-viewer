@@ -440,6 +440,113 @@
   color: var(--text-muted);
 }
 
+/* ---------------- pending-diff cards (spec §5.4) ---------------- */
+
+.diffCard {
+  margin: 0 0 8px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  padding: 8px 10px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diffCard[data-status='applied'] {
+  border-inline-start-color: var(--ok);
+}
+
+.diffCard[data-status='discarded'],
+.diffCard[data-status='error'] {
+  border-inline-start-color: var(--danger);
+  opacity: 0.85;
+}
+
+.diffHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.diffRange {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* The resolution announcement lives here (aria-live). */
+.diffLive {
+  margin-inline-start: auto;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.diffLive[data-status='applied'] {
+  color: var(--ok);
+}
+
+.diffLive[data-status='discarded'],
+.diffLive[data-status='error'] {
+  color: var(--danger);
+}
+
+.diffSection {
+  margin: 0;
+  padding: 6px 8px;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: 6px;
+}
+
+.diffRemoved {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--text);
+}
+
+.diffAdded {
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  color: var(--text);
+}
+
+.diffMore {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.diffActions {
+  display: flex;
+  gap: 8px;
+}
+
+.diffApply,
+.diffDiscard {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev);
+  cursor: pointer;
+}
+
+.diffApply {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.diffApply:hover,
+.diffDiscard:hover {
+  filter: brightness(1.08);
+}
+
 /* ---------------- selection chip + composer ---------------- */
 
 /* Preview-selection context: what the send will carry, visible and

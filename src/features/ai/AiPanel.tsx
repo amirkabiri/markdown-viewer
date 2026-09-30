@@ -38,6 +38,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { flushSync } from 'react-dom';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   Button,
@@ -66,8 +67,12 @@ import createExternalProvider from './chat-provider';
 import ConsentDialog from './ConsentDialog';
 import AiSettingsForm from './AiSettingsForm';
 import type { ProviderDraft } from './AiSettingsForm';
-import ToolActivity from './ToolActivity';
-import type { ToolCallView } from './ToolActivity';
+import ToolActivity, { statusForOutcome } from './ToolActivity';
+import type { ToolCallStatus, ToolCallView } from './ToolActivity';
+import PendingDiffCard from './PendingDiffCard';
+import type { PendingDiffStatus, PendingDiffView } from './pendingDiff';
+import { applyPendingDiff, createToolExecutor } from './executor';
+import { lineRangeOfOffset } from '../../lib/ai/tool-results';
 import { aiToast } from './toast-queue';
 import { previewExcerptQueue } from './previewExcerpt';
 import type { PreviewExcerptPayload } from './previewExcerpt';
@@ -89,6 +94,7 @@ interface ChatEntry {
   role: 'user' | 'assistant';
   text: string;
   tools: ToolCallView[];
+  diffs: PendingDiffView[];
   pending: boolean;
 }
 
@@ -274,6 +280,9 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
   const [consentDeclined, setConsentDeclined] = useState(false);
   const pendingSendRef = useRef<PendingSend | null>(null);
   const lastExternalRef = useRef<ChatProvider | null>(null);
+  /** How the previous turn's proposed edit was resolved — fed to the next
+   *  prompt so the model never re-proposes a discarded edit (spec §5.4). */
+  const resolutionRef = useRef<{ tool: string; resolution: 'applied' | 'discarded' } | null>(null);
   const nextIdRef = useRef(1);
   const nextId = (): number => {
     const id = nextIdRef.current;
@@ -378,22 +387,30 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
   };
 
   /**
-   * The agent's hands. Reads are always granted; writes are the direct-edit
-   * permission, with replace-selection pinned to the range captured at send
-   * time for selection-aware sends.
+   * Runs an editor write with the panel overlay released: the React Aria
+   * modal marks outside content inert, so the frozen applyEdit's
+   * focus()+execCommand path silently no-ops while reporting success. The
+   * overlay unmounts and remounts within ONE task (two flushSync commits,
+   * no paint in between) — the write lands with real focus, one undo step.
    */
-  const makeExecutor = (
-    pinnedRange: [number, number] | null,
-    directEditOn: boolean,
-  ): ToolExecutor => ({
-    readDocument: () => editor.getText(),
-    editDocument: (mode, text) => {
-      if (!directEditOn) return false;
-      if (mode === 'replace-selection' && pinnedRange) {
-        return editor.applyEdit(mode, text, pinnedRange);
-      }
-      return editor.applyEdit(mode, text);
-    },
+  const withEditorAccess = useCallback(<T,>(write: () => T): T => {
+    flushSync(() => setOpen(false));
+    try {
+      return write();
+    } finally {
+      flushSync(() => setOpen(true));
+    }
+  }, []);
+
+  /**
+   * The agent's hands (v2 toolset, executor.ts): reads always granted; the
+   * direct-edit permission gates every write (off ⇒ structured READ_ONLY
+   * refusal). Small writes auto-apply through the frozen applyEdit mechanism
+   * (one splice = one undo step); larger ones come back as PENDING diffs.
+   */
+  const makeExecutor = (directEditOn: boolean): ToolExecutor => createToolExecutor(editor, {
+    directEdit: directEditOn,
+    withEditorAccess,
   });
 
   /** Gate + construct the ACTIVE provider; explains why when refused. */
@@ -423,6 +440,47 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
     return provider;
   };
 
+  /** Applies one pending diff (card Apply). Content-anchored diffs re-anchor
+   *  on the live document; line-anchored ones refuse when it moved. */
+  const applyDiff = (assistantId: number, diff: PendingDiffView): void => {
+    const result = applyPendingDiff(editor, diff, withEditorAccess);
+    const stepStatus: ToolCallStatus = result.applied ? 'applied' : 'error';
+    if (result.applied) {
+      resolutionRef.current = { tool: diff.data.tool, resolution: 'applied' };
+      aiToast(tt('aiToolApplied'));
+    } else {
+      aiToast(tt('aiDiffChanged'), 'error');
+    }
+    setMessages((prev) => prev.map((message) => {
+      if (message.id !== assistantId) return message;
+      const nextStatus: PendingDiffStatus = result.applied ? 'applied' : 'error';
+      return {
+        ...message,
+        tools: message.tools.map((step) => (step.id === diff.stepId
+          ? { ...step, status: stepStatus }
+          : step)),
+        diffs: message.diffs.map((d) => (d.id === diff.id ? { ...d, status: nextStatus } : d)),
+      };
+    }));
+  };
+
+  /** Discards one pending diff — reported back on the next send so the model
+   *  never re-proposes blindly (spec §5.4). */
+  const discardDiff = (assistantId: number, diff: PendingDiffView): void => {
+    resolutionRef.current = { tool: diff.data.tool, resolution: 'discarded' };
+    aiToast(tt('aiToolDiscarded'));
+    setMessages((prev) => prev.map((message) => {
+      if (message.id !== assistantId) return message;
+      return {
+        ...message,
+        tools: message.tools.map((step) => (step.id === diff.stepId
+          ? { ...step, status: 'discarded' }
+          : step)),
+        diffs: message.diffs.map((d) => (d.id === diff.id ? { ...d, status: 'discarded' as const } : d)),
+      };
+    }));
+  };
+
   /** Runs one send end-to-end against the agent loop. */
   const performSend = async (req: PendingSend): Promise<void> => {
     const { current: currentSettings } = settingsRef;
@@ -440,6 +498,11 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
       const selected = hasSelection && req.pinnedRange
         ? req.docText.slice(req.pinnedRange[0], req.pinnedRange[1])
         : '';
+      const selectionLines = hasSelection && req.pinnedRange
+        ? lineRangeOfOffset(req.docText, req.pinnedRange[0], req.pinnedRange[1])
+        : null;
+      const resolution = resolutionRef.current;
+      resolutionRef.current = null; // it describes exactly the previous turn
       const prompt = buildChatMessages({
         question: req.question,
         hasSelection,
@@ -447,6 +510,8 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
         docText: req.docText,
         readOnly,
         excerpt: req.excerpt ?? undefined,
+        selectionLines,
+        resolution,
       });
       if (req.excerpt) setExcerpt(null); // context is now part of the message
       const userId = nextId();
@@ -458,6 +523,7 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
           role: 'user',
           text: req.question,
           tools: [],
+          diffs: [],
           pending: false,
         },
         {
@@ -465,13 +531,14 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
           role: 'assistant',
           text: '',
           tools: [],
+          diffs: [],
           pending: true,
         },
       ]);
 
       const agent = createAgent({
         provider,
-        executor: makeExecutor(req.pinnedRange, !readOnly),
+        executor: makeExecutor(!readOnly),
       });
 
       let final = '';
@@ -488,7 +555,6 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
             const step: ToolCallView = {
               id: nextId(),
               tool: ev.tool,
-              mode: ev.args.mode,
               status: 'running',
             };
             setMessages((prev) => prev.map((m) => {
@@ -496,17 +562,31 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
               return { ...m, tools: [...m.tools, step] };
             }));
           } else if (ev.type === 'tool-result') {
+            setLoadingLabel(null);
+            const { outcome } = ev;
+            const stepStatus: ToolCallStatus = statusForOutcome(outcome);
             setMessages((prev) => prev.map((m) => {
               if (m.id !== assistantId) return m;
               const tools = [...m.tools];
+              let settledId = -1;
               for (let i = tools.length - 1; i >= 0; i -= 1) {
                 const step = tools[i];
                 if (step.status === 'running' && step.tool === ev.tool) {
-                  tools[i] = { ...step, status: ev.ok ? 'ok' : 'refused' };
+                  tools[i] = { ...step, status: stepStatus };
+                  settledId = step.id;
                   break;
                 }
               }
-              return { ...m, tools };
+              const diffs = outcome.status === 'pending' && settledId >= 0
+                ? [...m.diffs, {
+                  id: nextId(),
+                  stepId: settledId,
+                  status: 'pending' as const,
+                  data: outcome.diff,
+                  docAtProposal: editor.getText(),
+                }]
+                : m.diffs;
+              return { ...m, tools, diffs };
             }));
           } else {
             final = ev.text;
@@ -660,6 +740,15 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
                   className={message.role === 'user' ? styles.msgUser : styles.msgAssistant}
                 >
                   {message.role === 'assistant' && <ToolActivity steps={message.tools} tt={tt} />}
+                  {message.role === 'assistant' && message.diffs.map((diff) => (
+                    <PendingDiffCard
+                      key={diff.id}
+                      diff={diff}
+                      tt={tt}
+                      onApply={() => applyDiff(message.id, diff)}
+                      onDiscard={() => discardDiff(message.id, diff)}
+                    />
+                  ))}
                   <MessageBody
                     entry={message}
                     showLoading={loadingLabel !== null && index === messages.length - 1}

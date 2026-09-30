@@ -1,10 +1,11 @@
 // Shared agent-boundary fakes (house pattern from legacy/test/ai-agent.test.ts
 // — see TESTING.md): a ChatProvider streaming scripted replies and a
-// ToolExecutor recording calls. Reused by agent tests and, later, the AI
-// panel component tests.
+// ToolExecutor recording calls. Reused by agent tests and the AI panel tests.
+// v2 toolset: the executor takes WHOLE tool calls (args + raw body) and
+// answers with a structured ToolOutcome; outcomes can be queued per test.
 
-import type { ToolExecutor } from '../lib/ai/agent';
-import type { EditMode } from '../lib/ai/edits';
+import type { AgentToolCall, ToolExecutor } from '../lib/ai/agent';
+import type { ToolOutcome } from '../lib/ai/tool-results';
 import type { ChatMessage, ChatProvider, ProviderId } from '../lib/ai/types';
 
 /** Streams one scripted reply per stream() call, chunked, recording inputs. */
@@ -43,23 +44,17 @@ export class AlwaysReadProvider implements ChatProvider {
   }
 }
 
-/** Records tool executions; editDocument refuses when editResult is false. */
+/** Records executed tool calls; queued outcomes are consumed in order. */
 export class FakeExecutor implements ToolExecutor {
-  reads = 0;
+  calls: AgentToolCall[] = [];
 
-  edits: { mode: EditMode; text: string }[] = [];
+  outcomes: ToolOutcome[] = [];
 
-  editResult = true;
+  /** The outcome returned for the next call with nothing queued. */
+  defaultOutcome: ToolOutcome = { status: 'ok', message: 'done' };
 
-  constructor(readonly doc = 'DOC CONTENT') {}
-
-  readDocument(): string {
-    this.reads += 1;
-    return this.doc;
-  }
-
-  editDocument(mode: EditMode, text: string): boolean {
-    this.edits.push({ mode, text });
-    return this.editResult;
+  execute(call: AgentToolCall): ToolOutcome {
+    this.calls.push(call);
+    return this.outcomes.shift() ?? this.defaultOutcome;
   }
 }
