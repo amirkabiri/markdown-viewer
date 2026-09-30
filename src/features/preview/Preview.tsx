@@ -6,20 +6,42 @@
 // + error-note on failure), the document-switch scroll gating (reset on a
 // real switch only — typing keeps the position — plus the scroll-to-hash
 // after a document load) and the TOC scroll spy.
-import { useEffect, useRef, type RefObject } from 'react';
+//
+// Preview-selection → AI (this feature): a text selection inside the article
+// floats an accessible "Ask AI about this" affordance near the selection.
+// Activating it publishes { excerpt, sourceRange, headingPath } to the
+// features/ai handoff queue (previewExcerptQueue) — the panel adopts it as
+// visible composer context. The affordance never touches the selection
+// itself (mousedown is prevented, so copy/links/mermaid interactions are
+// unaffected), disappears when the selection collapses, and yields Escape to
+// any React Aria layer that is open.
+import {
+  useEffect, useRef, useState,
+  type MouseEvent as ReactMouseEvent,
+  type RefObject,
+} from 'react';
 
 import { useT } from '../../app/i18n';
+import { isForeignLayerOpen } from '../../app/shortcuts';
+import { previewExcerptQueue } from '../ai';
 import { mermaidConfig } from '../../lib/markdown';
 import type { ContentDir, Theme } from '../../lib/store';
 import { detectDir } from '../../lib/store';
 
 import { currentHeadingIndex } from './scrollSpy';
+import { rangeExcerptText, readPreviewSelection } from './selectionExcerpt';
 import type { MarkdownPreviewState } from './useMarkdownPreview';
 
 import styles from './Preview.module.css';
 
 /** Legacy BLOCK_SEL — the blocks that auto-direction applies to. */
 const BLOCK_SEL = 'p,h1,h2,h3,h4,h5,h6,li,td,th,figcaption,dd,dt,summary,blockquote';
+
+/** The floating affordance's anchored position (container-relative px). */
+interface AskAffordance {
+  top: number;
+  left: number;
+}
 
 export interface PreviewProps {
   state: MarkdownPreviewState;
@@ -130,6 +152,88 @@ export default function Preview({
     spyRef.current = onSpyChange;
     linkRef.current = onOpenDocLink;
   }, [onSpyChange, onOpenDocLink]);
+
+  /* ---------------- preview selection → AI affordance ---------------- */
+
+  const [ask, setAsk] = useState<AskAffordance | null>(null);
+  const askButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  // Selection tracking: a non-empty selection inside the article floats the
+  // affordance near the selection start (container-relative geometry, so it
+  // scrolls with the text and is direction-agnostic). Whitespace-only and
+  // collapsed selections hide it. Cheap per tick — the source-anchored
+  // mapping only runs on activation.
+  useEffect(() => {
+    const onSelectionChange = (): void => {
+      const article = articleRef.current;
+      const container = scrollRef.current;
+      if (!article || !container) return;
+      const selection = document.getSelection();
+      if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+        setAsk(null);
+        return;
+      }
+      const range = selection.getRangeAt(0);
+      if (!article.contains(range.commonAncestorContainer)) {
+        setAsk(null);
+        return;
+      }
+      if (rangeExcerptText(range).trim() === '') {
+        setAsk(null);
+        return;
+      }
+      // jsdom's Range has no client rects — the anchor degrades to a fixed
+      // spot there (component tests assert presence/payload, not pixels);
+      // real browsers get the selection's own rect.
+      const rect = typeof range.getBoundingClientRect === 'function'
+        ? range.getBoundingClientRect()
+        : null;
+      const box = container.getBoundingClientRect();
+      setAsk({
+        top: Math.max(8, (rect?.top ?? 68) - box.top + container.scrollTop - 44),
+        left: Math.max(8, (rect?.left ?? 24) - box.left + container.scrollLeft),
+      });
+    };
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => document.removeEventListener('selectionchange', onSelectionChange);
+  }, [scrollRef]);
+
+  // Escape dismisses the affordance — but any React Aria layer outside the
+  // preview (the AI panel, dialogs, menus) owns Escape first (same topmost-
+  // layer rule the panel itself applies). Focus returns to the scroll region
+  // when the dismissal came from the affordance's own key press.
+  useEffect(() => {
+    if (!ask) return undefined;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const container = scrollRef.current;
+      if (!container || isForeignLayerOpen(container)) return;
+      setAsk(null);
+      if (askButtonRef.current === document.activeElement) container.focus();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [ask, scrollRef]);
+
+  /** Activation: map the live selection and hand it to the AI panel. */
+  const handleAskActivate = (): void => {
+    const article = articleRef.current;
+    const selection = document.getSelection();
+    if (!article || !selection || selection.isCollapsed || selection.rangeCount === 0) return;
+    const payload = readPreviewSelection(article, selection.getRangeAt(0), state.source ?? '');
+    if (!payload) {
+      setAsk(null);
+      return;
+    }
+    previewExcerptQueue.publish(payload);
+    setAsk(null);
+  };
+
+  // The press must not collapse the selection (the user may still want to
+  // read what they just asked about).
+  const handleAskMouseDown = (event: ReactMouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+  };
 
   /* Mermaid: initialize once per theme, render each shell; failures get the
      legacy .mermaid-failed + error-note UI. The article remounts on theme
@@ -296,7 +400,7 @@ export default function Preview({
   }, [scrollRef]);
 
   return (
-    <div className={styles.previewScroll} ref={scrollRef}>
+    <div className={styles.previewScroll} ref={scrollRef} tabIndex={-1}>
       {/* Sanitized upstream by DOMPurify inside the frozen lib/markdown
           pipeline — this is the injection point the design mandates. */}
       <article
@@ -308,6 +412,19 @@ export default function Preview({
         /* eslint-disable-next-line react/no-danger */
         dangerouslySetInnerHTML={{ __html: previewHtml(state, t('tooLarge')) }}
       />
+      {ask && (
+        <div className={styles.askPop} style={{ top: ask.top, left: ask.left }}>
+          <button
+            type="button"
+            ref={askButtonRef}
+            className={styles.askButton}
+            onMouseDown={handleAskMouseDown}
+            onClick={handleAskActivate}
+          >
+            {t('aiPreviewAsk')}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

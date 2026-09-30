@@ -69,6 +69,8 @@ import type { ProviderDraft } from './AiSettingsForm';
 import ToolActivity from './ToolActivity';
 import type { ToolCallView } from './ToolActivity';
 import { aiToast } from './toast-queue';
+import { previewExcerptQueue } from './previewExcerpt';
+import type { PreviewExcerptPayload } from './previewExcerpt';
 import { useBuiltinAi } from './useBuiltinAi';
 import type { BuiltinAi } from './useBuiltinAi';
 import styles from './AiPanel.module.css';
@@ -95,6 +97,8 @@ interface PendingSend {
   question: string;
   docText: string;
   pinnedRange: [number, number] | null;
+  /** Preview-selection context attached at send time (consumed on send). */
+  excerpt: PreviewExcerptPayload | null;
 }
 
 interface SelectionChipState {
@@ -107,6 +111,23 @@ function loadingLabelFor(settings: ProviderSettings, tt: (key: string) => string
   if (settings.provider === 'builtin') return tt('aiStartingModel');
   if (settings.provider === 'openai') return tt('aiConnectingOpenai');
   return tt('aiConnectingAnthropic');
+}
+
+/** The chip's localized source hint ("lines 3–3 · Guide › Details"). */
+function excerptSourceLine(
+  excerpt: PreviewExcerptPayload,
+  tt: (key: string) => string,
+  lang: Lang,
+): string {
+  const locale = lang === 'fa' ? 'fa-IR' : 'en-US';
+  const parts: string[] = [];
+  if (excerpt.sourceRange) {
+    parts.push(
+      `${tt('aiExcerptLines')} ${excerpt.sourceRange.startLine.toLocaleString(locale)}–${excerpt.sourceRange.endLine.toLocaleString(locale)}`,
+    );
+  }
+  if (excerpt.headingPath.length > 0) parts.push(excerpt.headingPath.join(' › '));
+  return parts.join(' · ');
 }
 
 /** The selection chip reflects what a send would target right now. */
@@ -269,6 +290,29 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
   const [chip, setChip] = useState<SelectionChipState>(() => readChip(editor));
   const refreshChip = useCallback(() => setChip(readChip(editor)), [editor]);
 
+  /* Preview-selection context (the "Ask AI about this" handoff): adopted on
+     mount (the payload may have been published before the panel existed) and
+     on every publication while alive. Adopting re-opens the panel — a user
+     who selected text in the preview asked for THIS panel next. */
+  const [excerpt, setExcerpt] = useState<PreviewExcerptPayload | null>(null);
+  useEffect(() => {
+    const adopt = (payload: PreviewExcerptPayload): void => {
+      previewExcerptQueue.consume();
+      setExcerpt(payload);
+      setOpen(true);
+    };
+    const unsubscribe = previewExcerptQueue.subscribe(adopt);
+    const waiting = previewExcerptQueue.current;
+    if (waiting) adopt(waiting);
+    return unsubscribe;
+  }, []);
+
+  // New context arrives → the user's next step is typing the prompt.
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    if (excerpt) composerRef.current?.focus();
+  }, [excerpt]);
+
   // Esc closes the panel — a document-level CAPTURE listener, exactly like
   // legacy (bubble-phase events from inside the RAC portal are delegated at
   // React's root and never reach a document bubble listener; capture runs
@@ -402,7 +446,9 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
         selected,
         docText: req.docText,
         readOnly,
+        excerpt: req.excerpt ?? undefined,
       });
+      if (req.excerpt) setExcerpt(null); // context is now part of the message
       const userId = nextId();
       const assistantId = nextId();
       setMessages((prev) => [
@@ -534,17 +580,22 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
     const selected = docText.slice(start, end);
     const hasSelection = selected.trim() !== '';
     const pinnedRange: [number, number] | null = hasSelection ? [start, end] : null;
+    const attachedExcerpt = excerpt;
     refreshChip();
 
     // NEVER auto-download: a send while 'downloadable' opens the consent
     // dialog; the message is requeued and sent after an explicit Download.
     if (settingsRef.current.provider === 'builtin' && availability === 'downloadable') {
-      pendingSendRef.current = { question, docText, pinnedRange };
+      pendingSendRef.current = {
+        question, docText, pinnedRange, excerpt: attachedExcerpt,
+      };
       setConsentOpen(true);
       return;
     }
 
-    await performSend({ question, docText, pinnedRange });
+    await performSend({
+      question, docText, pinnedRange, excerpt: attachedExcerpt,
+    });
   };
 
   // Sync handlers for the RAC event props (promises must not leak as floats).
@@ -632,8 +683,30 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
               </div>
             )}
 
+            {/* Visible, removable preview-selection context: the user must
+                SEE what will be sent before pressing Send. */}
+            {excerpt && (
+              <div className={styles.excerpt} role="group" aria-label={tt('aiExcerptContext')}>
+                <div className={styles.excerptHead}>
+                  <span className={styles.excerptLabel}>{tt('aiExcerptContext')}</span>
+                  <span className={styles.excerptSource}>
+                    {excerptSourceLine(excerpt, tt, lang)}
+                  </span>
+                  <Button
+                    onPress={() => setExcerpt(null)}
+                    aria-label={tt('aiExcerptRemove')}
+                    className={styles.excerptRemove}
+                  >
+                    ×
+                  </Button>
+                </div>
+                <blockquote className={styles.excerptQuote}>{excerpt.excerpt}</blockquote>
+              </div>
+            )}
+
             <div className={styles.composer}>
               <TextArea
+                ref={composerRef}
                 aria-label={tt('aiInputPlaceholder')}
                 placeholder={tt('aiInputPlaceholder')}
                 value={draft}
