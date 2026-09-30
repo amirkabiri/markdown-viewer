@@ -1,11 +1,12 @@
 // Component tests for the `?` cheat-sheet dialog: one localized row per
-// SHORTCUTS entry with the platform-formatted combo (PC names in jsdom),
-// the RAC focus trap (autofocus into the dialog, Esc restore via RAC), and
-// the Persian mirroring through the same table.
+// SHORTCUTS entry with the platform-formatted combo (PC names in jsdom, ⌘
+// glyphs on a stubbed macOS platform), the RAC focus trap (autofocus into
+// the dialog, Esc restore via RAC), and the Persian mirroring through the
+// same table.
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
-  describe, expect, it, vi,
+  afterEach, describe, expect, it, vi,
 } from 'vitest';
 import { I18nProvider } from './i18n';
 import { t } from '../i18n';
@@ -17,6 +18,14 @@ interface SetupOpts {
   lang?: 'en' | 'fa';
 }
 
+/** jsdom reports ''; stub a platform to exercise the macOS display branch. */
+function setPlatform(platform: string): void {
+  Object.defineProperty(window.navigator, 'platform', {
+    value: platform,
+    configurable: true,
+  });
+}
+
 function setup({ lang = 'en' }: SetupOpts = {}) {
   const onOpenChange = vi.fn();
   render(
@@ -26,6 +35,10 @@ function setup({ lang = 'en' }: SetupOpts = {}) {
   );
   return { onOpenChange };
 }
+
+afterEach(() => {
+  setPlatform('');
+});
 
 describe('<ShortcutsDialog />', () => {
   it('lists every shortcut in the table under its group heading', () => {
@@ -43,16 +56,39 @@ describe('<ShortcutsDialog />', () => {
     });
   });
 
-  it('renders PC-style combos in jsdom (Ctrl/Alt names, no glyphs)', () => {
+  it('renders the audited PC bindings (no reserved combos shown)', () => {
     setup();
 
-    expect(screen.getByText('Ctrl+O')).toBeInTheDocument();
-    expect(screen.getByText('Ctrl+Alt+N')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl+Alt+O')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl+Alt+Shift+N')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl+Alt+U')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl+Alt+A')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl+Alt+X')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl+\\')).toBeInTheDocument();
     expect(screen.getByText('Alt+2')).toBeInTheDocument();
-    expect(screen.getByText('Ctrl+Shift+C')).toBeInTheDocument();
     expect(screen.getByText('?')).toBeInTheDocument();
     expect(screen.getByText('Esc')).toBeInTheDocument();
+    // The moved bindings must be GONE, not doubled: no DevTools-inspect,
+    // browser Open File, italic or macOS Dock combos on display.
+    expect(screen.queryByText('Ctrl+O')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ctrl+Shift+C')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ctrl+I')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ctrl+Alt+D')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ctrl+Alt+N')).not.toBeInTheDocument();
     expect(screen.queryByText(/⌘/)).not.toBeInTheDocument();
+  });
+
+  it('renders ⌘-glyph stacks for the audited bindings on a mac platform', () => {
+    setPlatform('MacIntel');
+    setup();
+
+    expect(screen.getByText('⌘⌥O')).toBeInTheDocument();
+    expect(screen.getByText('⌘⌥⇧N')).toBeInTheDocument();
+    expect(screen.getByText('⌘⌥U')).toBeInTheDocument();
+    expect(screen.getByText('⌘⌥A')).toBeInTheDocument();
+    expect(screen.getByText('⌘⌥X')).toBeInTheDocument();
+    expect(screen.getByText('⌘\\')).toBeInTheDocument();
+    expect(screen.queryByText(/Ctrl\+/)).not.toBeInTheDocument();
   });
 
   it('renders the Persian table for the FA language', () => {
@@ -62,7 +98,7 @@ describe('<ShortcutsDialog />', () => {
     expect(screen.getByRole('heading', { name: 'اسناد' })).toBeInTheDocument();
     expect(screen.getByText('سند جدید')).toBeInTheDocument();
     // The key combos stay LTR islands inside the RTL layout.
-    expect(screen.getByText('Ctrl+O')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl+Alt+O')).toBeInTheDocument();
   });
 
   it('traps focus inside the dialog on open (RAC autofocus)', () => {
