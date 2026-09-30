@@ -60,7 +60,7 @@ no React).
 
 | Criterion | TipTap 3.31.4 / ProseMirror | Lexical 0.52.0 | Slate 0.126/0.127 | Milkdown 7.22 (PM+remark) | BlockNote 0.55 | CodeMirror 6 (source editor) | Plain textarea (status quo) |
 |---|---|---|---|---|---|---|---|
-| Bundle (gzip, measured) | 129.9 KB (core+react+starter-kit+pm) | 139.2 KB (lexical+react+markdown) | 62.4 KB (slate+slate-react) | 91.4 KB core only; +plugins+remark — UNCERTAIN total | 418.3 KB (core+react) | 160.5 KB (cm+lang-markdown) | 0 |
+| Bundle (gzip, measured) | 129.9 KB (core+react+starter-kit+pm) | 139.2 KB (lexical+react+markdown) | 62.4 KB (slate+slate-react) | 138.8 KB (core+commonmark+gfm+history; +React wrapper & slash/tooltip/block plugins on top) | 418.3 KB (core+react) | 160.5 KB (cm+lang-markdown) | 0 |
 | Frozen `EditorApi` + imperative AI edits | 1 — AI must go through editor commands/transactions | 1 — AI must use `editor.update()` | 2 — transforms, but custom | 1 — PM transaction model | 1 — block-model commands | 4 — text paradigm survives; `dispatch` maps 1:1 | 5 |
 | Native undo preserved | 1 — own history plugin; browser undo replaced | 1 — `@lexical/history` own stack | 2 — own `withHistory` | 1 — prosemirror-history | 1 | 3 — own history, but programmatic changes fold in via `userEvent` annotations; concept survives | 5 |
 | Autosave integration | 3 — `onUpdate` gives JSON/HTML/markdown, not raw source | 3 | 3 | 3 — markdown out | 3 | 5 — `doc.toString()` is the source | 5 |
@@ -101,8 +101,9 @@ no React).
   the release pattern itself.
 - **Lexical is still 0.x** (0.52.0, npm, 2026-09-28) — Meta-backed and production-proven,
   but our measured "hello markdown editor" is 139 KB gzip, i.e. **+57% on the main chunk**.
-- **Milkdown** is the most honest markdown-native option (remark-based) but inherits PM's
-  document-size behavior and adds a plugin system on top.
+- **Milkdown** is the most honest markdown-native option (remark-based; 138.8 KB gzip
+  measured for core+commonmark+gfm+history) but inherits PM's document-size behavior and
+  adds a plugin system on top.
 - **BlockNote** (418 KB gzip measured) is a block/Notion paradigm — wrong shape for a
   source-markdown document app.
 
