@@ -4,3 +4,5 @@
 export { default as AiPanel } from './AiPanel';
 export type { AiPanelProps } from './AiPanel';
 export { aiToast, aiToastQueue } from './toast-queue';
+export { previewExcerptQueue } from './previewExcerpt';
+export type { PreviewExcerptPayload } from './previewExcerpt';
