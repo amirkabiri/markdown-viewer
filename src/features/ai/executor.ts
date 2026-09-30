@@ -32,7 +32,19 @@ import type { EditorApi } from '../editor/api';
 export interface ExecutorOptions {
   /** The direct-edit setting — the agent's write permission. */
   directEdit: boolean;
+  /**
+   * Runs a DOM write while the panel overlay is RELEASED. The frozen
+   * applyEdit needs real focus for its native-undo execCommand path, but a
+   * React Aria modal marks outside content inert — focus() no-ops and
+   * execCommand('insertText') then reports SUCCESS while writing nothing.
+   * The panel supplies the bridge (flushSync close → write → reopen); tests
+   * and read-only mode run without one.
+   */
+  withEditorAccess?: WithEditorAccess;
 }
+
+/** The panel-provided bridge; identity when absent (fakes, unit tests). */
+export type WithEditorAccess = <T>(write: () => T) => T;
 
 const READ_ONLY_REFUSAL: ToolOutcome = {
   status: 'refused',
@@ -70,9 +82,10 @@ function isSmallOp(removedText: string, addedText: string): boolean {
  */
 export function createToolExecutor(editor: EditorApi, opts: ExecutorOptions): ToolExecutor {
   const basis: { current: string } = { current: editor.getText() };
+  const through: WithEditorAccess = opts.withEditorAccess ?? ((write) => write());
 
   function applySpan(plan: SpanReplacePlan): boolean {
-    return editor.applyEdit('replace-selection', plan.replacement, [plan.start, plan.end]);
+    return through(() => editor.applyEdit('replace-selection', plan.replacement, [plan.start, plan.end]));
   }
 
   /** Pending diff data + payload message for one planned splice. */
@@ -158,7 +171,7 @@ export function createToolExecutor(editor: EditorApi, opts: ExecutorOptions): To
         case 'insert_at_cursor': {
           if (!opts.directEdit) return READ_ONLY_REFUSAL;
           const text = stringArg(call.args, 'text') ?? '';
-          return editor.applyEdit('cursor', text)
+          return through(() => editor.applyEdit('cursor', text))
             ? { status: 'applied', message: `inserted ${diffLines(text).length} line(s) at the caret` }
             : {
               status: 'error', code: 'CANCELLED', message: 'the insert was cancelled', hint: 'do not retry; include the text in your reply',
@@ -229,7 +242,7 @@ export function createToolExecutor(editor: EditorApi, opts: ExecutorOptions): To
           if (!opts.directEdit) return READ_ONLY_REFUSAL;
           const text = call.body !== '' ? call.body : (stringArg(call.args, 'text') ?? '');
           // Stays behind the editor's own confirm dialog (frozen applyEdit).
-          return editor.applyEdit('replace-document', text)
+          return through(() => editor.applyEdit('replace-document', text))
             ? { status: 'applied', message: `replaced the whole document (${countLines(text)} lines)` }
             : {
               status: 'error', code: 'CANCELLED', message: 'the user declined the replace-document confirmation', hint: 'propose a smaller edit (replace_text) instead',
@@ -264,7 +277,11 @@ export type ApplyDiffResult = { applied: true } | { applied: false; reason: 'cha
  * refused with `changed` when the document is not the one the range was
  * validated against — stale cards never corrupt the document.
  */
-export function applyPendingDiff(editor: EditorApi, diff: ApplicableDiff): ApplyDiffResult {
+export function applyPendingDiff(
+  editor: EditorApi,
+  diff: ApplicableDiff,
+  withEditorAccess?: WithEditorAccess,
+): ApplyDiffResult {
   const { data } = diff;
   const doc = editor.getText();
   if (data.tool === 'replace_range' && doc !== diff.docAtProposal) {
@@ -280,7 +297,8 @@ export function applyPendingDiff(editor: EditorApi, diff: ApplicableDiff): Apply
     start = replan.plan.start;
     end = replan.plan.end;
   }
-  return editor.applyEdit('replace-selection', data.addedText, [start, end])
+  const through: WithEditorAccess = withEditorAccess ?? ((write) => write());
+  return through(() => editor.applyEdit('replace-selection', data.addedText, [start, end]))
     ? { applied: true }
     : { applied: false, reason: 'changed' };
 }

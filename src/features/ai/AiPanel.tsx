@@ -38,6 +38,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { flushSync } from 'react-dom';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   Button,
@@ -386,6 +387,22 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
   };
 
   /**
+   * Runs an editor write with the panel overlay released: the React Aria
+   * modal marks outside content inert, so the frozen applyEdit's
+   * focus()+execCommand path silently no-ops while reporting success. The
+   * overlay unmounts and remounts within ONE task (two flushSync commits,
+   * no paint in between) — the write lands with real focus, one undo step.
+   */
+  const withEditorAccess = useCallback(<T,>(write: () => T): T => {
+    flushSync(() => setOpen(false));
+    try {
+      return write();
+    } finally {
+      flushSync(() => setOpen(true));
+    }
+  }, []);
+
+  /**
    * The agent's hands (v2 toolset, executor.ts): reads always granted; the
    * direct-edit permission gates every write (off ⇒ structured READ_ONLY
    * refusal). Small writes auto-apply through the frozen applyEdit mechanism
@@ -393,6 +410,7 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
    */
   const makeExecutor = (directEditOn: boolean): ToolExecutor => createToolExecutor(editor, {
     directEdit: directEditOn,
+    withEditorAccess,
   });
 
   /** Gate + construct the ACTIVE provider; explains why when refused. */
@@ -425,10 +443,13 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
   /** Applies one pending diff (card Apply). Content-anchored diffs re-anchor
    *  on the live document; line-anchored ones refuse when it moved. */
   const applyDiff = (assistantId: number, diff: PendingDiffView): void => {
-    const result = applyPendingDiff(editor, diff);
+    const result = applyPendingDiff(editor, diff, withEditorAccess);
     const stepStatus: ToolCallStatus = result.applied ? 'applied' : 'error';
     if (result.applied) {
       resolutionRef.current = { tool: diff.data.tool, resolution: 'applied' };
+      aiToast(tt('aiToolApplied'));
+    } else {
+      aiToast(tt('aiDiffChanged'), 'error');
     }
     setMessages((prev) => prev.map((message) => {
       if (message.id !== assistantId) return message;
@@ -447,6 +468,7 @@ export default function AiPanel({ editor, t, lang }: AiPanelProps) {
    *  never re-proposes blindly (spec §5.4). */
   const discardDiff = (assistantId: number, diff: PendingDiffView): void => {
     resolutionRef.current = { tool: diff.data.tool, resolution: 'discarded' };
+    aiToast(tt('aiToolDiscarded'));
     setMessages((prev) => prev.map((message) => {
       if (message.id !== assistantId) return message;
       return {

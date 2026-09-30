@@ -349,11 +349,13 @@ describe('<AiPanel /> — pending-diff cards', () => {
 
     await userEvent.click(within(card).getByRole('button', { name: 'Apply' }));
 
-    // The edit landed through applyEdit (one splice — one undo step).
+    // The edit landed through applyEdit (one splice — one undo step). The
+    // write released the panel overlay, so the dialog remounted — re-query.
     expect(editor.doc).toBe(`# Doc\n\n${newBody}\n`);
     expect(editor.edits[0]?.mode).toBe('replace-selection');
-    expect(await within(card).findByText('Applied')).toBeInTheDocument();
-    expect(within(card).queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument();
+    const resolved = screen.getByRole('group', { name: 'Proposed edit' });
+    expect(await within(resolved).findByText('Applied')).toBeInTheDocument();
+    expect(within(resolved).queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument();
   });
 
   it('Discard leaves the document untouched and marks the proposal discarded', async () => {
