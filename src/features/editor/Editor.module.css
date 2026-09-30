@@ -1,5 +1,22 @@
 /* The document textarea — ported from legacy style/base.css (#editor). */
 
+.editorWrap {
+  /* Single source for the editor's type metrics: the gutter's numbers must
+     share the textarea's row geometry pixel-exactly. */
+  --editor-font: ui-monospace, SFMono-Regular, Menlo, Consolas, "Vazirmatn", monospace;
+  --editor-font-size: 14.5px;
+  --editor-line-height: 1.95;
+
+  /* Positions the gutter over the textarea's inline-start padding. NOT a
+     scroll container — the textarea keeps overflow/scroll semantics (see
+     e2e/scroll.spec.ts). */
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
 .editor {
   flex: 1;
   width: 100%;
@@ -7,11 +24,15 @@
   resize: none;
   outline: none;
   padding: 20px 22px;
+  /* The gutter overlays the inline-start padding; text starts past it. The
+     var is digit-driven width from React (lineNumbers.gutterWidthStyle) —
+     0 until hydration, which keeps the legacy padding as the fallback. */
+  padding-inline-start: calc(var(--gutter-w, 0px) + 12px);
   background: var(--bg-elev);
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Vazirmatn", monospace;
-  font-size: 14.5px;
-  line-height: 1.95;
+  font-family: var(--editor-font);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
   tab-size: 4;
   caret-color: var(--accent);
 }
@@ -19,4 +40,55 @@
 .editor::placeholder {
   color: var(--text-muted);
   opacity: 0.7;
+}
+
+/* --- Line-number gutter (display-only) --- */
+
+.gutter {
+  position: absolute;
+  inset-block: 0;
+  width: var(--gutter-w, 0px);
+  overflow: hidden;
+  /* Display-only: wheel/pointer events fall through to the textarea and
+     the numbers are never announced (aria-hidden in LineGutter.tsx). */
+  pointer-events: none;
+  user-select: none;
+  /* 10px each side — lineNumbers.GUTTER_INLINE_PX adds this into the
+     --gutter-w formula, so the digits get exactly one ch per digit. */
+  padding-inline: 10px;
+  font-family: var(--editor-font);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
+  color: var(--text-muted);
+  text-align: end;
+}
+
+/* Inline-start side, keyed off the gutter's dir attribute (LineGutter.tsx
+   passes the editor's rendered direction). The build down-levels logical
+   inset properties to :lang() rules, which track the element's LANGUAGE,
+   not its dir — under them a dir flip never moves the gutter, so the two
+   physical sides are declared explicitly here. */
+.gutter[dir="ltr"] {
+  left: 0;
+}
+
+.gutter[dir="rtl"] {
+  right: 0;
+}
+
+/* The translated column: scrolling moves this one transform, never the
+   individual numbers' boxes. */
+.gutterColumn {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  will-change: transform;
+}
+
+.gutterNumber {
+  position: absolute;
+  inset-inline: 0;
+  /* Glyph rows must land on the textarea's rows: same font metrics, and
+     the top comes from the measured first-visual-row offset. */
+  white-space: nowrap;
 }
