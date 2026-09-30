@@ -64,11 +64,16 @@ afterEach(() => {
 });
 
 describe('useGlobalShortcuts', () => {
-  it('dispatches openDialog on Ctrl+O (PC platform default in jsdom)', async () => {
+  it('dispatches openDialog on Ctrl+Alt+O (PC platform default in jsdom)', async () => {
     const log: string[] = [];
     render(<Harness log={log} layerOpen={false} />);
 
+    // The old Ctrl+O binding was moved off the browser's Open File combo —
+    // it must not dispatch (the invariant lives in shortcuts.test.ts).
     press({ key: 'o', ctrlKey: true });
+    expect(log).toEqual([]);
+
+    press({ key: 'o', ctrlKey: true, altKey: true });
 
     expect(log).toEqual(['openDialog']);
   });
@@ -78,10 +83,10 @@ describe('useGlobalShortcuts', () => {
     const log: string[] = [];
     render(<Harness log={log} layerOpen={false} />);
 
-    press({ key: 'o', metaKey: true });
+    press({ key: 'o', metaKey: true, altKey: true });
     expect(log).toEqual(['openDialog']);
 
-    press({ key: 'o', ctrlKey: true });
+    press({ key: 'o', ctrlKey: true, altKey: true });
     expect(log).toEqual(['openDialog']); // unchanged — Ctrl is not ⌘ on macOS
   });
 
@@ -143,10 +148,14 @@ describe('useGlobalShortcuts', () => {
     const log: string[] = [];
     render(<Harness log={log} layerOpen={false} />);
 
-    press({ key: 'n', ctrlKey: true, altKey: true });
-    press({ key: 'c', ctrlKey: true, shiftKey: true });
-    press({ key: 'd', ctrlKey: true, altKey: true });
-    press({ key: 'i', ctrlKey: true });
+    press({
+      key: 'n', ctrlKey: true, altKey: true, shiftKey: true,
+    });
+    press({
+      key: 'k', ctrlKey: true, altKey: true, shiftKey: true,
+    });
+    press({ key: 'x', ctrlKey: true, altKey: true });
+    press({ key: 'a', ctrlKey: true, altKey: true });
     press({ key: '\\', ctrlKey: true });
 
     expect(log).toEqual([

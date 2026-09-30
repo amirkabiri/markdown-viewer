@@ -203,11 +203,11 @@ describe('<App /> shell', () => {
     expect(screen.getAllByRole('button', { name: 'README' })).not.toHaveLength(0);
   });
 
-  it('routes Ctrl+O to the Open dialog through the shortcut layer', async () => {
+  it('routes Ctrl+Alt+O to the Open dialog through the shortcut layer', async () => {
     render(<App />);
     await screen.findByRole('heading', { name: /Stub README/ }, { timeout: 4000 });
 
-    await userEvent.keyboard('{Control>}o{/Control}');
+    await userEvent.keyboard('{Control>}{Alt>}o{/Alt}{/Control}');
 
     expect(screen.getByRole('heading', { name: 'Open a document' })).toBeVisible();
   });
@@ -220,7 +220,7 @@ describe('<App /> shell', () => {
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
 
-    await userEvent.keyboard('{Control>}o{/Control}');
+    await userEvent.keyboard('{Control>}{Alt>}o{/Alt}{/Control}');
     expect(screen.getByRole('heading', { name: 'Open a document' })).toBeVisible();
 
     // First Escape: the topmost layer (the dialog) closes…
@@ -248,7 +248,7 @@ describe('<App /> shell', () => {
     await userEvent.keyboard('?');
 
     const dialog = screen.getByRole('dialog', { name: 'Keyboard shortcuts' });
-    expect(within(dialog).getByText('Ctrl+O')).toBeInTheDocument();
+    expect(within(dialog).getByText('Ctrl+Alt+O')).toBeInTheDocument();
     // RAC autofocus: the dialog container takes focus and the focus scope
     // keeps focus inside.
     expect(dialog).toHaveFocus();

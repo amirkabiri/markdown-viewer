@@ -1,12 +1,18 @@
 // Module: app/shortcuts — the SINGLE SOURCE OF TRUTH for Qalam's global
 // keyboard shortcuts: the combo table, the exact-modifier event matcher
-// (⌘ on macOS, Ctrl elsewhere — browser-reserved plain Ctrl+P/T/S/W/N are
-// deliberately avoided), the display formatters (cheat-sheet glyphs and the
-// README <kbd> markup) and the two DOM probes the dispatcher needs (is the
-// event inside a text field; is a React Aria floating layer open). Pure and
-// DOM-free at import time. The cheat-sheet dialog, the global hook and the
-// README all render from SHORTCUTS, so documentation and behavior cannot
-// drift — the README table is test-enforced (shortcuts.test.ts).
+// (⌘ on macOS, Ctrl elsewhere), the display formatters (cheat-sheet glyphs
+// and the README <kbd> markup) and the two DOM probes the dispatcher needs
+// (is the event inside a text field; is a React Aria floating layer open).
+// Pure and DOM-free at import time. The cheat-sheet dialog, the global hook
+// and the README all render from SHORTCUTS, so documentation and behavior
+// cannot drift — the README table is test-enforced (shortcuts.test.ts).
+//
+// Bindings are conflict-audited against macOS, Windows and the Chrome, Edge,
+// Firefox and Safari reserved/documented combos (docs/SHORTCUTS.md has the
+// matrix and sources; shortcuts.test.ts encodes the reserved list): the
+// app's own combos live in the Mod+Alt family — ⌘⌥ on macOS, Ctrl+Alt
+// elsewhere — the one neighborhood free on every audited platform. Bare
+// Mod+B/I/U/P/S stay unbound (formatting/print/save conventions).
 
 /** Which platform's modifier naming and symbols to use. */
 export type Platform = 'mac' | 'pc';
@@ -56,7 +62,7 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   {
     id: 'openDialog',
     combo: {
-      mod: true, alt: false, shift: false, key: 'o',
+      mod: true, alt: true, shift: false, key: 'o',
     },
     labelKey: 'openTitle',
     group: 'documents',
@@ -65,7 +71,7 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   {
     id: 'newDocument',
     combo: {
-      mod: true, alt: true, shift: false, key: 'n',
+      mod: true, alt: true, shift: true, key: 'n',
     },
     labelKey: 'newDoc',
     group: 'documents',
@@ -74,7 +80,7 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   {
     id: 'copyShareLink',
     combo: {
-      mod: true, alt: false, shift: true, key: 'c',
+      mod: true, alt: true, shift: true, key: 'k',
     },
     labelKey: 'copyLink',
     group: 'documents',
@@ -92,7 +98,7 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   {
     id: 'toggleAiPanel',
     combo: {
-      mod: true, alt: false, shift: false, key: 'i',
+      mod: true, alt: true, shift: false, key: 'a',
     },
     labelKey: 'toggleAiPanel',
     group: 'view',
@@ -128,7 +134,7 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   {
     id: 'cycleDir',
     combo: {
-      mod: true, alt: true, shift: false, key: 'd',
+      mod: true, alt: true, shift: false, key: 'x',
     },
     labelKey: 'toggleDir',
     group: 'view',
