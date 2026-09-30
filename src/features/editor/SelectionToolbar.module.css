@@ -1,0 +1,42 @@
+/* The selection toolbar's floating menu — visual language from the global
+   tokens (same popover treatment as the documents list menu), plus the
+   hidden 0×0 anchor that positions it at the selection. */
+
+/* Invisible anchor at the selection-start caret point (wrapper-relative,
+   scroll-corrected by caretGeometry). Never focusable, never visible. */
+.anchor {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.popover {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 4px;
+  min-width: 150px;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+.menuItem {
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.menuItem[data-focused],
+.menuItem:hover {
+  background: var(--bg-subtle);
+}

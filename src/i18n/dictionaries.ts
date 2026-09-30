@@ -145,6 +145,20 @@ export const dictionaries: Record<Lang, Dictionary> = {
     aiExcerptContext: 'From the preview',
     aiExcerptLines: 'lines',
     aiExcerptRemove: 'Remove excerpt',
+    // features/editor selection toolbar (formatting menu over a selection)
+    fmtMenu: 'Formatting',
+    fmtBold: 'Bold',
+    fmtItalic: 'Italic',
+    fmtStrikethrough: 'Strikethrough',
+    fmtInlineCode: 'Inline code',
+    fmtLink: 'Link',
+    fmtHeading2: 'Heading 2',
+    fmtHeading3: 'Heading 3',
+    fmtBulletList: 'Bullet list',
+    fmtNumberedList: 'Numbered list',
+    fmtTaskList: 'Task list',
+    fmtBlockquote: 'Blockquote',
+    fmtCodeBlock: 'Code block',
     // app/shortcuts (global keyboard shortcut layer — one table, cheat sheet
     // and README render from it)
     shortcuts: 'Keyboard shortcuts',
@@ -287,6 +301,20 @@ export const dictionaries: Record<Lang, Dictionary> = {
     aiExcerptContext: 'از پیش‌نمایش',
     aiExcerptLines: 'خط‌های',
     aiExcerptRemove: 'حذف گزیده',
+    // features/editor selection toolbar (formatting menu over a selection)
+    fmtMenu: 'قالب‌بندی',
+    fmtBold: 'درشت',
+    fmtItalic: 'کج',
+    fmtStrikethrough: 'خط‌خورده',
+    fmtInlineCode: 'کد درون‌خطی',
+    fmtLink: 'پیوند',
+    fmtHeading2: 'عنوان ۲',
+    fmtHeading3: 'عنوان ۳',
+    fmtBulletList: 'فهرست نقطه‌ای',
+    fmtNumberedList: 'فهرست شماره‌دار',
+    fmtTaskList: 'فهرست کارها',
+    fmtBlockquote: 'نقل قول',
+    fmtCodeBlock: 'بلوک کد',
     // app/shortcuts (global keyboard shortcut layer — one table, cheat sheet
     // and README render from it)
     shortcuts: 'میان‌برهای صفحه‌کلید',

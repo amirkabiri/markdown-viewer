@@ -185,20 +185,174 @@ sort. Implemented in the React rewrite only (the vanilla app is frozen).
   (Persian digits), skip link, contrast-fixed solid dark buttons.
 - Final gates at merge HEAD: **402 unit / 60 e2e × 3 engines, lint clean,
   3 consecutive full cycles green.** Merging to main.
-- [ ] **Acceptance addition** — multi-document persistence verified in
-  browser: reload keeps content (autosave), order persists, legacy
-  migration runs once, removal confirm, EN+FA. **Multi-tab scenarios:**
-  two tabs editing different docs both autosave; same doc in two tabs →
-  one edits, one is read-only until takeover; changes in one tab appear in
-  the other without reload; removing a doc in one tab reflects in the other;
-  no data loss in any of these paths.
-- [ ] **Agent R6 — a11y + shortcuts pass** (after R4+R5) — complete keyboard
-  map (existing: Ctrl/⌘+O, Esc; plus documented bindings for panel, pane
-  modes, direction, share), roving focus + focus traps on overlays, aria
-  patterns audit, reduced-motion; README documents the shortcuts
-- [ ] **Acceptance — merge to main** — parity checklist EN+FA in browser,
-  the three UX requirements demoed, CI + e2e green on the PR, then merge
-  and deploy flip
+- [x] **Acceptance addition** — DONE: multi-document persistence + multi-tab
+  scenarios verified in browser and via the two-tab e2e spec (autosave,
+  order, migration-once, remove confirm, readonly/takeover/stolen-copy,
+  live cross-tab sync — no data loss paths).
+- [x] **Agent R6 — a11y + shortcuts pass** — DONE (see R6 entry above).
+- [x] **Acceptance — merge to main** — DONE (`28d9a6f` React rewrite on
+  `main`; CI + deploy green).
+
+### Milestone: editor UX batch + AI capability (current, on `main`)
+
+Stakeholder direction batch: line numbers in the editor, conflict-free
+shortcuts (macOS/Windows/browser), selection-to-AI from the preview, an
+adopt-vs-own decision on agent frameworks, and an editor selection toolbar
+(build-vs-library).
+
+- [x] **Agent W1 — editor line-number gutter** — DONE, verified by the
+  lead (429/429 unit at final HEAD; all 15 gutter e2e specs green across
+  engines in the lead's own run — the sole webkit failure was the
+  pre-fix deep-link product bug, resolved on main by W8; live browser
+  pass: wrap alignment pixel-exact, virtualized ~12 nodes at top, scroll
+  round-trip, screenshot reviewed). Design: hidden mirror div as the wrap
+  oracle (textarea = wrap authority; sub-pixel `getBoundingClientRect`
+  heights), pure math in `lineNumbers.ts` (first-visual-row offsets,
+  binary-search visible window +8px overscan, ch-based digit width),
+  one measure per animation frame (rAF text changes + ResizeObserver width
+  + font settle), `translateY(-scrollTop)` scroll lockstep, virtualized
+  window so a 5k-line doc renders ~20 nodes per frame. Display-only
+  contract proven: `aria-hidden`, `pointer-events: none` (wheel passes
+  through, e2e-asserted), textarea remains THE scroll container with
+  original semantics (scroll specs unchanged and green), `EditorApi`
+  untouched, measurer injected for tests. Two measured finds fixed:
+  Vite down-levels logical CSS insets to `:lang()` rules (a dir flip
+  never moved the gutter) → `[dir]`-keyed physical insets; Firefox
+  delivers the old document's scroll event before the replacing input →
+  scrollTop reconciliation + clamp in the measure pass.
+- [x] **Agent W2 — shortcut conflict audit + redesign** — DONE, verified by
+  the lead (full gates green at rework HEAD: typecheck/lint/409 unit/build +
+  78 e2e with only the known pre-existing webkit scroll flake; live browser
+  pass: cheat sheet ⌘⌥O/⌘⌥⇧N/⌘⌥⇧K/⌘\/⌘⌥A/⌥1-3/⌘⌥X, ⌘⌥O opens the Open
+  dialog, ⌘O inert, ⌘⌥A toggles the AI panel, ⌘I inert, ⌘⌥⇧K copies the
+  link, ⌘⌥X cycles direction). Audited matrix with sources in
+  `docs/SHORTCUTS.md`; reserved set test-encoded (`RESERVED_COMBOS`
+  invariant, failing-first). Final map — every action stays reachable:
+  Open ⌘⌥O, New ⌘⌥⇧N, Copy link ⌘⌥⇧K, Panel ⌘\, AI ⌘⌥A, Panes ⌥1/2/3,
+  Direction ⌘⌥X, `?`/Esc unchanged. Moved off browser/OS-reserved combos:
+  ⌘O (Open File), ⌘⌥N (Chrome split view + Finder Smart Folder), ⌘⇧C
+  (DevTools Inspect), ⌘I (italic + Firefox Page Info), ⌘⌥D (macOS Dock).
+  Lead validation catches: first rework pick ⌘⌥U = mac Chrome/Safari View
+  Source → returned; plain K also disqualified (⌘⌥K = Firefox Web Console)
+  → shipped ⌘⌥⇧K. Documented trade-off: Ctrl+Alt = AltGr on Windows
+  international layouts (inherited from pre-existing ⌘⌥N/Alt+digit).
+- [x] **Agent W3 — preview-selection → AI** — DONE, verified by the lead
+  (435/435 unit at final HEAD; e2e green on all 3 engines in the lead's
+  independent run; feature live-verified in browser). Select text in the
+  preview → floating "Ask AI about this" pill (RTL-safe, mousedown-safe,
+  keyboard operable, Escape-dismiss with foreign-layer yield) → AI panel
+  opens with a visible removable excerpt chip (localized line range with FA
+  digits + heading path) → send delivers ONE message = prompt +
+  `<document_excerpt>` delimited as untrusted data with an explicit
+  ignore-instructions rule (matching the agent protocol). Source anchoring
+  without a renderer swap: `sourceAnchor.ts` recovers each top-level
+  token's exact source span from marked's `raw` slices and pairs them to
+  rendered blocks order-based + VERIFIED (disagreement ⇒ null, never a
+  guess); selection range = union of touched blocks (block-level
+  granularity; char-precise needs renderer support — proposal documented);
+  fallback = nearest-heading path. Handoff via module queue (frozen
+  AiPanel props), latest-payload-wins. **Lead validation catches:** (1)
+  the spec's programmatic `addRange` selection is headless-unreliable →
+  reworked to a real trusted-input mouse drag with per-engine repeat
+  evidence; (2) third stale-server incident confirmed (foreign worktree's
+  preview on 4173 served a build without the feature) — structural fix
+  (`E2E_PORT` override) lands with the deep-link product fix.
+- [x] **Agent W4 — agent-framework R&D** (branch `research/agent-frameworks`)
+  — DONE (`ff76fca`, doc merged to `docs/agent-framework-research.md`):
+  **Decision — KEEP our own agent loop; implement the v2 toolset.** No
+  evaluated framework offers a pluggable text-protocol tool-calling strategy
+  (all pass through native function calling), so adoption would regress the
+  user-configured arbitrary-endpoint support or force re-implementing our
+  parser inside the framework (+150–220 kB gzip). Runner-up: Vercel AI SDK
+  v7 (isomorphic, Apache-2.0; adopt triggers documented). v2 toolset spec
+  (§5): 7 tools — ranged/line-numbered `read_document`, `search_document`,
+  `document_outline`, content-anchored `replace_text` (SEARCH/REPLACE raw
+  bodies, whitespace-tolerant fallback, retryable errors), `insert_at_cursor`,
+  staleness-validated `replace_range`, confirm-gated `replace_document`;
+  step cap 3→8; pending-diff Apply/Discard cards; preview-selection exposed
+  by prompt injection with line/heading anchors.
+- [x] **Agent W5 — editor selection-toolbar R&D** — DONE
+  (`docs/selection-toolbar-research.md`, merged): **Option B — keep the
+  plain textarea; ZERO new dependencies.** RAC `Popover`+`Menu` anchored
+  to a hidden 0×0 element at the selection (full APG menu semantics + RTL
+  flipping free, verified in installed 1.21.1); caret/selection pixels
+  from an owned mirror-div module shared with W1's gutter
+  (`textareaGeometry.ts`); formatting as an owned pure
+  `(text, sel, action) → {text, sel}` module (~150 lines; GitHub's MIT
+  `@github/markdown-toolbar-element` + EasyMDE `_toggleBlock` as reference
+  specs) written back through the controller's execCommand→setRangeText
+  path — native undo + autosave preserved, frozen `EditorApi` untouched.
+  Rich-text frameworks rejected on evidence: lossy markdown round-trip
+  (TipTap #8134/#8314), multi-MB doc degradation, native-undo replacement,
+  full-rewrite migration cost vs ~0 KB. Runner-up B′: `@floating-ui/
+  react-dom` (+9.1 KB) only if the RAC standalone spike shows focus/
+  Escape quirks; WYSIWYG escape hatch = CodeMirror 6. Default action set
+  and dismissal/interaction spec in the doc (§ menu order 1–11).
+- [x] **Agent W6 — v2 AI toolset implementation** — DONE, verified by the
+  lead (own gates: unit suite green at final HEAD, build clean, 104 e2e +
+  webkit axe flake isolated-green; LIVE browser pass with a v2-speaking
+  mock provider: search_document → OK, replace_text raw-body → auto-applied
+  → the edit LANDED in the document → one native undo step reverts; board
+  note: the lead's first mock had a turn-detection bug — the v2 system
+  prompt itself mentions every tool name, so turn detection must key off
+  `TOOL RESULT (<tool>)` markers). Shipped: 7 tools (ranged line-numbered
+  reads, search, ATX outline, content-anchored `replace_text` with raw
+  SEARCH/REPLACE bodies + whitespace-tolerant fallback + nearest-line
+  error anchors, insert-at-cursor, staleness-validated `replace_range`,
+  confirm-gated `replace_document`); fence grammar = JSON header line +
+  verbatim raw body (no \n escaping; forgiving parser, truncation
+  tolerated); step cap 3→8; pending-diff cards with Apply/Discard,
+  aria-live resolution, >200-line collapse; auto-apply ≤20 changed lines
+  with direct-edit on; prompt +332 tokens (test-guarded < +400);
+  DELETED: `append`, the 4-mode `edit_document` enum, the 12k head+tail
+  clip. Bundle +5.7 kB gzip (≈half model-facing strings). **Big find —
+  pre-existing product bug fixed (`3042347`): every agent write through
+  the open panel silently no-op'd (React Aria modal marks outside content
+  inert → focus() fails → execCommand reports success writing nothing);
+  fixed with a withEditorAccess bridge (flushSync close → write → reopen
+  in one task); platform caveat: Firefox's native undo cannot fully
+  revert a multi-line execCommand splice (Chromium/WebKit revert in one
+  press), e2e undo leg scoped accordingly.**
+- [x] **Agent W8 — deep-link jump product fix + e2e hardening** — DONE,
+  verified by the lead (own full gates green: 439/439 unit, 85/85 e2e on an
+  isolated port; live browser check: deep link lands ~16px off — the
+  heading's own margin — and stays; agent evidence: 20/20 webkit repeats,
+  tolerance unchanged, broken-jump regression 6/6 red). Finding: the
+  "webkit flake" was a REAL product bug — the hash jump landed correctly,
+  then the README logo (no reserved layout box) reflowed the article ~73px
+  after landing and nothing re-anchored (webkit's native anchoring
+  unreliable); plus a rarer race scrolling a DETACHED subtree with the
+  once-guard consumed (jump lost). Fix: effect B re-queries the live
+  target and consumes the guard only on a real landing, with a bounded
+  re-anchor window (100ms ticks, 3s cap, quiescence-closed, never
+  re-opened by typing — R12 intact); README logo gets `height="96"`;
+  the spec asserts the SETTLED end state + a deterministic drift repro
+  (route-held logo released post-jump); a document-fetch hold makes the
+  app jump load-bearing (browsers' deferred fragment scrolling masked a
+  broken jump on fast boots). `E2E_PORT` overrides the Playwright port —
+  third stale-server incident closed structurally (P3 entry resolved).
+  Watch: one unreproducible unit-test failure in the agent's first
+  post-merge run (not reproduced in 3+ full runs; lead's run green).
+- [x] **Agent W7 — editor selection toolbar implementation** — DONE,
+  verified by the lead (own gates 520/520 unit + 109 e2e ×3 engines with
+  27/27 repeat evidence; post-merge main: 597/597 unit + 114 e2e green;
+  live browser pass: drag-select floats the full 12-action menu at the
+  selection, Bold wraps EXACTLY the pinned range (`br**own**` on a short
+  drag — range fidelity proven), one native undo restores byte-for-byte,
+  screenshot reviewed). Implementation per research Option B, zero new
+  deps: `markdownActions.ts` pure toggle engine (43-case matrix:
+  wrap/unwrap, intraword italic, link variants, per-line heading/list/
+  quote toggles, fenced code blocks), sibling `caretGeometry.ts` over a
+  shared extracted mirror base (`textareaMirror.ts` — gutter specs stayed
+  green), RAC `Popover`+`Menu` anchored at a hidden element with
+  document-direction RTL, 200ms settle with the range pinned at show,
+  write-echo suppression, IME/scroll/blur/readOnly dismissal,
+  `pointer: fine` phase 1. Controller gained additive `applyFormat`
+  (frozen `EditorApi` untouched); every action = one native undo step
+  (e2e + live-verified). Real-engine find fixed: WebKit parks an empty
+  inline marker at the line edge → RTL anchors measured on the wrong
+  side; zero-width-space marker participates in the flow. Bundle
+  +6.8 kB gzip.
 
 ### Milestone: AI agent loop (done)
 
@@ -251,6 +405,11 @@ sort. Implemented in the React rewrite only (the vanilla app is frozen).
   history).
 
 ## P3 — Backlog (do not forget, no date)
+
+- [ ] e2e hygiene: a stale local `vite preview` squatting on the Playwright
+  port (4173, `reuseExistingServer` outside CI) silently poisons gated runs
+  with an old build — kill orphaned previews before gated e2e (lead
+  finding, 2026-09-30; bit during W2 validation)
 
 - [ ] Optional host allow-list for `?url=` fetches (audit finding #6)
 - [ ] Drag & drop file-type filter (currently only size-capped)

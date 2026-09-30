@@ -42,6 +42,13 @@
   opacity: 0.7;
 }
 
+/* While the selection toolbar's menu is open, focus sits in the menu and an
+   unfocused textarea dims its selection in some engines — keep the
+   highlighted text legible (selection-toolbar research, pitfall 2). */
+.editor::selection {
+  background: var(--accent-soft);
+}
+
 /* --- Line-number gutter (display-only) --- */
 
 .gutter {
