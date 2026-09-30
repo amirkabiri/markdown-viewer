@@ -127,6 +127,11 @@ export const dictionaries: Record<Lang, Dictionary> = {
     aiReplaceSelection: 'Replace selection',
     aiAppend: 'Append',
     aiReplaceDocument: 'Replace document',
+    // features/preview → features/ai (preview selection → AI context)
+    aiPreviewAsk: 'Ask AI about this',
+    aiExcerptContext: 'From the preview',
+    aiExcerptLines: 'lines',
+    aiExcerptRemove: 'Remove excerpt',
     // app/shortcuts (global keyboard shortcut layer — one table, cheat sheet
     // and README render from it)
     shortcuts: 'Keyboard shortcuts',
@@ -252,6 +257,11 @@ export const dictionaries: Record<Lang, Dictionary> = {
     aiReplaceSelection: 'جایگزینی انتخاب',
     aiAppend: 'افزودن در پایان',
     aiReplaceDocument: 'جایگزینی کل سند',
+    // features/preview → features/ai (preview selection → AI context)
+    aiPreviewAsk: 'پرسش از هوش مصنوعی دربارهٔ این',
+    aiExcerptContext: 'از پیش‌نمایش',
+    aiExcerptLines: 'خط‌های',
+    aiExcerptRemove: 'حذف گزیده',
     // app/shortcuts (global keyboard shortcut layer — one table, cheat sheet
     // and README render from it)
     shortcuts: 'میان‌برهای صفحه‌کلید',

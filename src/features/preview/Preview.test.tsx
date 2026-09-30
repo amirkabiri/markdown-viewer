@@ -9,12 +9,13 @@ import {
 } from '@testing-library/react';
 import { createRef } from 'react';
 import {
-  beforeEach, describe, expect, it, vi,
+  afterEach, beforeEach, describe, expect, it, vi,
 } from 'vitest';
 
 import mermaid from 'mermaid';
 import { I18nProvider } from '../../app/i18n';
-import { mermaidConfig } from '../../lib/markdown';
+import { previewExcerptQueue, type PreviewExcerptPayload } from '../ai';
+import { mermaidConfig, renderMarkdown } from '../../lib/markdown';
 
 import Preview from './Preview';
 import type { MarkdownPreviewState } from './useMarkdownPreview';
@@ -35,7 +36,7 @@ const mermaidMock = vi.mocked(mermaid);
 
 function makeState(overrides: Partial<MarkdownPreviewState> = {}): MarkdownPreviewState {
   return {
-    html: '', toc: [], error: null, tooLarge: false, ...overrides,
+    html: '', toc: [], error: null, tooLarge: false, source: '', ...overrides,
   };
 }
 
@@ -337,5 +338,194 @@ describe('<Preview /> mermaid', () => {
       expect(shell?.classList.contains('mermaid-failed')).toBe(true);
       expect(shell?.nextElementSibling).toHaveTextContent('Mermaid diagram error: bad syntax');
     });
+  });
+});
+
+/* ---------------- ask-AI affordance (preview selection → AI) ---------------- */
+
+const ASK_SOURCE = [
+  '# Guide',
+  '',
+  'First paragraph.',
+  '',
+  '## Details',
+  '',
+  'Body text here.',
+  '',
+].join('\n');
+
+/** Selects `text` inside the article the way a user drag would. */
+function selectText(text: string): void {
+  const walker = document.createTreeWalker(article(), NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node && !(node.textContent ?? '').includes(text)) node = walker.nextNode();
+  if (!node) throw new Error(`text not rendered: ${text}`);
+  const start = (node.textContent ?? '').indexOf(text);
+  const range = document.createRange();
+  range.setStart(node, start);
+  range.setEnd(node, start + text.length);
+  const selection = window.getSelection();
+  if (!selection) throw new Error('no selection API');
+  selection.removeAllRanges();
+  selection.addRange(range);
+  act(() => {
+    document.dispatchEvent(new Event('selectionchange'));
+  });
+}
+
+/** Selects the range between two article blocks (multi-block selections). */
+function selectBetween(startEl: Element, endEl: Element, endOffset: number): void {
+  const range = document.createRange();
+  range.setStartBefore(startEl);
+  range.setEnd(endEl, endOffset);
+  const selection = window.getSelection();
+  if (!selection) throw new Error('no selection API');
+  selection.removeAllRanges();
+  selection.addRange(range);
+  act(() => {
+    document.dispatchEvent(new Event('selectionchange'));
+  });
+}
+
+function clearSelection(): void {
+  window.getSelection()?.removeAllRanges();
+  act(() => {
+    document.dispatchEvent(new Event('selectionchange'));
+  });
+}
+
+describe('<Preview /> ask-AI affordance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.history.replaceState(null, '', '/');
+    window.getSelection()?.removeAllRanges();
+    previewExcerptQueue.consume();
+  });
+
+  afterEach(() => {
+    previewExcerptQueue.consume();
+    window.getSelection()?.removeAllRanges();
+  });
+
+  it('offers an accessible affordance on selection and publishes the excerpt with source anchoring', () => {
+    const published: PreviewExcerptPayload[] = [];
+    const unsubscribe = previewExcerptQueue.subscribe((payload) => published.push(payload));
+    renderHarness({
+      state: makeState({ html: renderMarkdown(ASK_SOURCE).html, source: ASK_SOURCE }),
+    });
+
+    selectText('First paragraph.');
+    const button = screen.getByRole('button', { name: 'Ask AI about this' });
+    expect(button).toBeVisible();
+
+    fireEvent.click(button);
+
+    expect(published).toHaveLength(1);
+    expect(published[0]).toEqual({
+      excerpt: 'First paragraph.',
+      sourceRange: {
+        startOffset: ASK_SOURCE.indexOf('First paragraph.'),
+        endOffset: ASK_SOURCE.indexOf('First paragraph.') + 'First paragraph.'.length,
+        startLine: 3,
+        endLine: 3,
+      },
+      headingPath: ['Guide'],
+    });
+    // The affordance step is over after activation.
+    expect(screen.queryByRole('button', { name: 'Ask AI about this' })).not.toBeInTheDocument();
+    unsubscribe();
+  });
+
+  it('joins a multi-block selection and unions the source lines', () => {
+    const published: PreviewExcerptPayload[] = [];
+    const unsubscribe = previewExcerptQueue.subscribe((payload) => published.push(payload));
+    renderHarness({
+      state: makeState({ html: renderMarkdown(ASK_SOURCE).html, source: ASK_SOURCE }),
+    });
+
+    const first = article().querySelector('p');
+    const h2 = article().querySelector('h2');
+    if (!first || !h2) throw new Error('fixture missing');
+    selectBetween(first, h2, h2.childNodes.length);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ask AI about this' }));
+
+    expect(published[0]?.excerpt).toBe('First paragraph.\nDetails');
+    expect(published[0]?.sourceRange).toMatchObject({ startLine: 3, endLine: 5 });
+    unsubscribe();
+  });
+
+  it('suppresses the affordance for collapsed or whitespace-only selections', () => {
+    renderHarness({
+      state: makeState({ html: renderMarkdown(ASK_SOURCE).html, source: ASK_SOURCE }),
+    });
+
+    clearSelection();
+    expect(screen.queryByRole('button', { name: 'Ask AI about this' })).not.toBeInTheDocument();
+
+    // The "selection" between two adjacent blocks carries no text at all.
+    const first = article().querySelector('p');
+    const h2 = article().querySelector('h2');
+    if (!first || !h2) throw new Error('fixture missing');
+    const range = document.createRange();
+    range.setStart(first, first.childNodes.length);
+    range.setEnd(h2, 0);
+    const selection = window.getSelection();
+    if (!selection) throw new Error('no selection API');
+    selection.removeAllRanges();
+    selection.addRange(range);
+    act(() => {
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+
+    expect(screen.queryByRole('button', { name: 'Ask AI about this' })).not.toBeInTheDocument();
+  });
+
+  it('hides the affordance when the selection collapses again', () => {
+    renderHarness({
+      state: makeState({ html: renderMarkdown(ASK_SOURCE).html, source: ASK_SOURCE }),
+    });
+
+    selectText('First paragraph.');
+    expect(screen.getByRole('button', { name: 'Ask AI about this' })).toBeInTheDocument();
+
+    clearSelection();
+    expect(screen.queryByRole('button', { name: 'Ask AI about this' })).not.toBeInTheDocument();
+  });
+
+  it('dismisses on Escape and returns focus to the preview scroll region', () => {
+    renderHarness({
+      state: makeState({ html: renderMarkdown(ASK_SOURCE).html, source: ASK_SOURCE }),
+    });
+
+    selectText('First paragraph.');
+    const button = screen.getByRole('button', { name: 'Ask AI about this' });
+    button.focus();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByRole('button', { name: 'Ask AI about this' })).not.toBeInTheDocument();
+    const container = article().parentElement as HTMLElement;
+    expect(document.activeElement).toBe(container);
+  });
+
+  it('renders the localized label in Persian', () => {
+    render(
+      <I18nProvider lang="fa">
+        <Preview
+          state={makeState({ html: renderMarkdown(ASK_SOURCE).html, source: ASK_SOURCE })}
+          dir="rtl"
+          dirMode="rtl"
+          theme="light"
+          docIdentity="doc"
+          scrollRef={createRef()}
+          onSpyChange={vi.fn()}
+          onOpenDocLink={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    selectText('First paragraph.');
+    expect(screen.getByRole('button', { name: 'پرسش از هوش مصنوعی دربارهٔ این' })).toBeInTheDocument();
   });
 });
