@@ -139,7 +139,7 @@ sheet — it renders in your interface language. On macOS the shortcuts use
 | --- | --- |
 | Open a document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>O</kbd> |
 | New document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> |
-| Copy link to this document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>U</kbd> |
+| Copy link to this document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> |
 | Toggle panel | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>&#92;</kbd> |
 | Toggle AI assistant | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> |
 | Editor only | <kbd>Alt</kbd>+<kbd>1</kbd> |
@@ -283,7 +283,7 @@ setup: **Settings → Pages → Source: GitHub Actions**. The site lives at
 | --- | --- |
 | باز کردن سند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>O</kbd> |
 | سند جدید | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> |
-| کپی نشانی این سند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>U</kbd> |
+| کپی نشانی این سند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> |
 | نمایش/بستن پنل | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>&#92;</kbd> |
 | نمایش/بستن دستیار هوشمند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> |
 | فقط ویرایشگر | <kbd>Alt</kbd>+<kbd>1</kbd> |

@@ -80,7 +80,7 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   {
     id: 'copyShareLink',
     combo: {
-      mod: true, alt: true, shift: false, key: 'u',
+      mod: true, alt: true, shift: true, key: 'k',
     },
     labelKey: 'copyLink',
     group: 'documents',
