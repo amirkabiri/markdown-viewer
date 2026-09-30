@@ -61,7 +61,7 @@ describe('<ShortcutsDialog />', () => {
 
     expect(screen.getByText('Ctrl+Alt+O')).toBeInTheDocument();
     expect(screen.getByText('Ctrl+Alt+Shift+N')).toBeInTheDocument();
-    expect(screen.getByText('Ctrl+Alt+U')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl+Alt+Shift+K')).toBeInTheDocument();
     expect(screen.getByText('Ctrl+Alt+A')).toBeInTheDocument();
     expect(screen.getByText('Ctrl+Alt+X')).toBeInTheDocument();
     expect(screen.getByText('Ctrl+\\')).toBeInTheDocument();
@@ -69,10 +69,11 @@ describe('<ShortcutsDialog />', () => {
     expect(screen.getByText('?')).toBeInTheDocument();
     expect(screen.getByText('Esc')).toBeInTheDocument();
     // The moved bindings must be GONE, not doubled: no DevTools-inspect,
-    // browser Open File, italic or macOS Dock combos on display.
+    // browser Open File, View Source, italic or macOS Dock combos on display.
     expect(screen.queryByText('Ctrl+O')).not.toBeInTheDocument();
     expect(screen.queryByText('Ctrl+Shift+C')).not.toBeInTheDocument();
     expect(screen.queryByText('Ctrl+I')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ctrl+Alt+U')).not.toBeInTheDocument();
     expect(screen.queryByText('Ctrl+Alt+D')).not.toBeInTheDocument();
     expect(screen.queryByText('Ctrl+Alt+N')).not.toBeInTheDocument();
     expect(screen.queryByText(/⌘/)).not.toBeInTheDocument();
@@ -84,7 +85,7 @@ describe('<ShortcutsDialog />', () => {
 
     expect(screen.getByText('⌘⌥O')).toBeInTheDocument();
     expect(screen.getByText('⌘⌥⇧N')).toBeInTheDocument();
-    expect(screen.getByText('⌘⌥U')).toBeInTheDocument();
+    expect(screen.getByText('⌘⌥⇧K')).toBeInTheDocument();
     expect(screen.getByText('⌘⌥A')).toBeInTheDocument();
     expect(screen.getByText('⌘⌥X')).toBeInTheDocument();
     expect(screen.getByText('⌘\\')).toBeInTheDocument();

@@ -151,7 +151,9 @@ describe('useGlobalShortcuts', () => {
     press({
       key: 'n', ctrlKey: true, altKey: true, shiftKey: true,
     });
-    press({ key: 'u', ctrlKey: true, altKey: true });
+    press({
+      key: 'k', ctrlKey: true, altKey: true, shiftKey: true,
+    });
     press({ key: 'x', ctrlKey: true, altKey: true });
     press({ key: 'a', ctrlKey: true, altKey: true });
     press({ key: '\\', ctrlKey: true });

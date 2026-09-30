@@ -165,6 +165,12 @@ const RESERVED_COMBOS: Record<Platform, readonly ShortcutCombo[]> = {
     {
       mod: true, alt: true, shift: false, key: 'b',
     }, // Bookmark manager
+    {
+      mod: true, alt: true, shift: false, key: 'u',
+    }, // View source (Chrome Help ⌘⌥U; Safari Develop ⌥⌘U page source)
+    {
+      mod: true, alt: true, shift: false, key: 'k',
+    }, // Firefox mac Web Console (firefox-source-docs ⌘⌥K)
     // Browser viewport features, macOS columns of the four browsers' docs
     {
       mod: true, alt: false, shift: false, key: 'o',
@@ -441,8 +447,8 @@ describe('formatCombo', () => {
     expect(formatCombo(byId('openDialog').combo, 'pc')).toBe('Ctrl+Alt+O');
     expect(formatCombo(byId('paneSplit').combo, 'mac')).toBe('⌥2');
     expect(formatCombo(byId('paneSplit').combo, 'pc')).toBe('Alt+2');
-    expect(formatCombo(byId('copyShareLink').combo, 'mac')).toBe('⌘⌥U');
-    expect(formatCombo(byId('copyShareLink').combo, 'pc')).toBe('Ctrl+Alt+U');
+    expect(formatCombo(byId('copyShareLink').combo, 'mac')).toBe('⌘⌥⇧K');
+    expect(formatCombo(byId('copyShareLink').combo, 'pc')).toBe('Ctrl+Alt+Shift+K');
     expect(formatCombo(byId('toggleAiPanel').combo, 'mac')).toBe('⌘⌥A');
     expect(formatCombo(byId('toggleAiPanel').combo, 'pc')).toBe('Ctrl+Alt+A');
     expect(formatCombo(byId('cycleDir').combo, 'mac')).toBe('⌘⌥X');
