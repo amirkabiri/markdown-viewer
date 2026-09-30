@@ -1,4 +1,4 @@
-<p align="center"><img src="public/logo.svg" width="96" alt="Qalam logo — a minimal reed-pen nib"></p>
+<p align="center"><img src="public/logo.svg" width="96" height="96" alt="Qalam logo — a minimal reed-pen nib"></p>
 
 # Qalam
 
