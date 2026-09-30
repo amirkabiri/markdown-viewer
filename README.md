@@ -119,7 +119,7 @@ link is refused.
 | Method | Details |
 | --- | --- |
 | Drag & drop | Drop a `.md` file anywhere on the page |
-| Open dialog | **Open** button or <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>O</kbd> — from a URL (GitHub `blob` links become raw automatically), a local file, or pasted text |
+| Open dialog | **Open** button or <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>O</kbd> — from a URL (GitHub `blob` links become raw automatically), a local file, or pasted text |
 | `?file=` | Path relative to the site, e.g. [the Persian sample](https://amirkabiri.github.io/qalam/?file=samples/sample-fa.md) |
 | `?url=` | Any absolute URL that allows CORS (`raw.githubusercontent.com` works) |
 | `#d=` | A self-contained share link — see [Share links](#share-links) |
@@ -137,21 +137,24 @@ sheet — it renders in your interface language. On macOS the shortcuts use
 
 | Action | Keys |
 | --- | --- |
-| Open a document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>O</kbd> |
-| New document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>N</kbd> |
-| Copy link to this document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> |
+| Open a document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>O</kbd> |
+| New document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> |
+| Copy link to this document | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>U</kbd> |
 | Toggle panel | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>&#92;</kbd> |
-| Toggle AI assistant | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>I</kbd> |
+| Toggle AI assistant | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> |
 | Editor only | <kbd>Alt</kbd>+<kbd>1</kbd> |
 | Split view | <kbd>Alt</kbd>+<kbd>2</kbd> |
 | Preview only | <kbd>Alt</kbd>+<kbd>3</kbd> |
-| Text direction (Auto / LTR / RTL) | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd> |
+| Text direction (Auto / LTR / RTL) | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>X</kbd> |
 | Keyboard shortcuts | <kbd>?</kbd> |
 | Close panel or dialog | <kbd>Esc</kbd> |
 
 The map has a single source of truth in the app (`src/app/shortcuts.ts`): the
 dispatcher, the cheat sheet and this table all render from it, and a unit
-test fails if the docs drift.
+test fails if the docs drift. Every binding is audited against macOS, Windows
+and the Chrome, Edge, Firefox and Safari reserved combos
+([docs/SHORTCUTS.md](docs/SHORTCUTS.md)) — a unit test fails if any binding
+collides.
 
 ## Development
 
@@ -278,15 +281,15 @@ setup: **Settings → Pages → Source: GitHub Actions**. The site lives at
 
 | کنش | کلیدها |
 | --- | --- |
-| باز کردن سند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>O</kbd> |
-| سند جدید | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>N</kbd> |
-| کپی نشانی این سند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> |
+| باز کردن سند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>O</kbd> |
+| سند جدید | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> |
+| کپی نشانی این سند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>U</kbd> |
 | نمایش/بستن پنل | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>&#92;</kbd> |
-| نمایش/بستن دستیار هوشمند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>I</kbd> |
+| نمایش/بستن دستیار هوشمند | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> |
 | فقط ویرایشگر | <kbd>Alt</kbd>+<kbd>1</kbd> |
 | نمای دو بخشی | <kbd>Alt</kbd>+<kbd>2</kbd> |
 | فقط پیش‌نمایش | <kbd>Alt</kbd>+<kbd>3</kbd> |
-| جهت متن (خودکار / چپ‌به‌راست / راست‌به‌چپ) | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>D</kbd> |
+| جهت متن (خودکار / چپ‌به‌راست / راست‌به‌چپ) | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Alt</kbd>+<kbd>X</kbd> |
 | میان‌برهای صفحه‌کلید | <kbd>?</kbd> |
 | بستن پنل یا گفتگو | <kbd>Esc</kbd> |
 
