@@ -183,6 +183,20 @@ test.describe('document scrolling', () => {
   });
 });
 
+/** Holds the ?file= document fetch back by the given delay: the hash target
+ *  then arrives well after the load event, when the browser's own deferred
+ *  fragment scroll has long given up — the APP's jump becomes the only
+ *  mechanism under test (regression check: break it, watch this go red). */
+async function holdDocumentFetch(page: Page, ms: number) {
+  await page.route('**/README.md', async (route) => {
+    const response = await route.fetch();
+    await new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
+    await route.fulfill({ response });
+  });
+}
+
 test.describe('typing keeps the scroll position', () => {
   test('a typing pause does not drag the panes back to the top', async ({ page }) => {
     const editor = await bootReadme(page);
@@ -299,6 +313,7 @@ test.describe('typing keeps the scroll position', () => {
   test('a ?file= deep link with a hash lands on the target heading', async ({ page }) => {
     // The hash must survive the async boot: the identity is set first, the
     // content renders right after — the jump fires once the target exists.
+    await holdDocumentFetch(page, 600);
     await page.goto('/?file=README.md#why-qalam');
     const scroll = previewScroll(page);
 
@@ -327,6 +342,7 @@ test.describe('typing keeps the scroll position', () => {
     const released = new Promise<void>((resolve) => {
       releaseLogo = resolve;
     });
+    await holdDocumentFetch(page, 600);
     await page.route('**/logo.svg', async (route) => {
       // Fetch the real response now; deliver it only when the test releases it.
       const response = await route.fetch();
