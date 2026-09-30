@@ -13,7 +13,9 @@ import {
  */
 async function newTab(context: BrowserContext): Promise<{ page: Page; editor: Locator }> {
   const page = await context.newPage();
-  await page.goto('http://localhost:4173/');
+  // Relative URL → baseURL: a hardcoded port would cross-test another
+  // worktree's server whenever the suite runs on an E2E_PORT override.
+  await page.goto('/');
   const editor = page.getByRole('textbox');
   return { page, editor };
 }
